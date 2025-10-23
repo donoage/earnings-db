@@ -29,7 +29,8 @@ yarn-error.log*
 Thumbs.db
 
 # Prisma
-prisma/migrations/
+# Keep migrations in git for Railway deployment
+# prisma/migrations/
 
 # Testing
 coverage/
