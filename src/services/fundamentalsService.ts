@@ -127,6 +127,11 @@ class FundamentalsService {
       };
 
       // Store in PostgreSQL
+      // Round BigInt fields to integers (market cap and shares don't need decimals)
+      // Decimal fields (ratios, percentages) are already handled by Prisma schema
+      const marketCapInt = fundamentalsData.marketCap ? BigInt(Math.round(fundamentalsData.marketCap)) : null;
+      const sharesOutstandingInt = fundamentalsData.sharesOutstanding ? BigInt(Math.round(fundamentalsData.sharesOutstanding)) : null;
+      
       await prisma.fundamental.upsert({
         where: { ticker: fundamentalsData.ticker },
         update: {
@@ -134,8 +139,8 @@ class FundamentalsService {
           exchange: fundamentalsData.exchange,
           sector: fundamentalsData.sector,
           industry: fundamentalsData.industry,
-          marketCap: fundamentalsData.marketCap ? BigInt(fundamentalsData.marketCap) : null,
-          sharesOutstanding: fundamentalsData.sharesOutstanding ? BigInt(fundamentalsData.sharesOutstanding) : null,
+          marketCap: marketCapInt,
+          sharesOutstanding: sharesOutstandingInt,
           updatedAt: new Date(),
         },
         create: {
@@ -144,8 +149,8 @@ class FundamentalsService {
           exchange: fundamentalsData.exchange,
           sector: fundamentalsData.sector,
           industry: fundamentalsData.industry,
-          marketCap: fundamentalsData.marketCap ? BigInt(fundamentalsData.marketCap) : null,
-          sharesOutstanding: fundamentalsData.sharesOutstanding ? BigInt(fundamentalsData.sharesOutstanding) : null,
+          marketCap: marketCapInt,
+          sharesOutstanding: sharesOutstandingInt,
         },
       });
 

@@ -150,16 +150,19 @@ class MarketCapService {
       };
 
       // Update in PostgreSQL (upsert into Fundamental)
+      // Round market cap to nearest integer (market cap doesn't need decimals)
+      const marketCapInt = BigInt(Math.round(marketCapData.marketCap));
+      
       await prisma.fundamental.upsert({
         where: { ticker: marketCapData.ticker },
         update: {
-          marketCap: BigInt(marketCapData.marketCap),
+          marketCap: marketCapInt,
           updatedAt: new Date(),
         },
         create: {
           ticker: marketCapData.ticker,
           companyName: result.name || marketCapData.ticker,
-          marketCap: BigInt(marketCapData.marketCap),
+          marketCap: marketCapInt,
         },
       });
 
