@@ -106,7 +106,7 @@ class EarningsService {
   }
 
   /**
-   * Fetch earnings from Polygon API
+   * Fetch earnings from Polygon API (Benzinga earnings endpoint)
    */
   private async fetchFromPolygon(query: EarningsQuery): Promise<EarningsEvent[]> {
     try {
@@ -118,11 +118,11 @@ class EarningsService {
 
       if (query.dateFrom) params['date.gte'] = query.dateFrom;
       if (query.dateTo) params['date.lte'] = query.dateTo;
-      if (query.tickers) params.ticker = query.tickers;
-      if (query.importance !== undefined) params.importance = query.importance;
+      if (query.tickers) params['ticker.any_of'] = query.tickers;
+      if (query.importance !== undefined) params['importance.gte'] = query.importance;
 
       const response = await axios.get(
-        `${POLYGON_BASE_URL}/vX/reference/financials`,
+        `${POLYGON_BASE_URL}/benzinga/v1/earnings`,
         { params, timeout: 15000 }
       );
 
@@ -131,17 +131,17 @@ class EarningsService {
       }
 
       const earnings: EarningsEvent[] = response.data.results.map((result: any) => ({
-        id: result.id || `${result.ticker}-${result.fiscal_period}-${result.fiscal_year}`,
+        id: result.benzinga_id || `${result.ticker}-${result.fiscal_period}-${result.fiscal_year}`,
         ticker: result.ticker,
-        date: result.start_date,
-        time: result.time_of_day,
+        date: result.date,
+        time: result.time,
         importance: result.importance,
-        epsActual: result.financials?.income_statement?.basic_earnings_per_share?.value,
-        epsEstimate: result.financials?.income_statement?.basic_earnings_per_share?.estimate,
-        revenueActual: result.financials?.income_statement?.revenues?.value,
-        revenueEstimate: result.financials?.income_statement?.revenues?.estimate,
+        epsActual: result.actual_eps,
+        epsEstimate: result.estimated_eps,
+        revenueActual: result.actual_revenue,
+        revenueEstimate: result.estimated_revenue,
         companyName: result.company_name || result.ticker,
-        currency: result.financials?.income_statement?.revenues?.unit,
+        currency: result.currency,
         period: result.fiscal_period,
         periodYear: result.fiscal_year,
       }));
