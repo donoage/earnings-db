@@ -9,6 +9,33 @@ import { marketCapService } from '../services/marketCapService';
 const router = express.Router();
 
 /**
+ * GET /api/market-cap/test/:ticker
+ * Test endpoint to fetch a single ticker and return detailed error info
+ */
+router.get('/test/:ticker', async (req: Request, res: Response) => {
+  try {
+    const { ticker } = req.params;
+    console.log(`[Market Cap API Test] Testing ${ticker}`);
+    
+    const result = await marketCapService.getMarketCap(ticker);
+    
+    res.json({ 
+      ticker,
+      success: result !== null,
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('[Market Cap API Test] Error:', error);
+    res.status(500).json({ 
+      ticker: req.params.ticker,
+      success: false,
+      error: error.message,
+      stack: error.stack,
+    });
+  }
+});
+
+/**
  * GET /api/market-cap
  * Get market caps for multiple tickers (comma-separated)
  * Example: /api/market-cap?tickers=AAPL,MSFT,GOOGL
@@ -43,33 +70,6 @@ router.get('/', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('[Market Cap API] Error:', error);
     res.status(500).json({ error: 'Internal server error', message: error.message });
-  }
-});
-
-/**
- * GET /api/market-cap/test/:ticker
- * Test endpoint to fetch a single ticker and return detailed error info
- */
-router.get('/test/:ticker', async (req: Request, res: Response) => {
-  try {
-    const { ticker } = req.params;
-    console.log(`[Market Cap API Test] Testing ${ticker}`);
-    
-    const result = await marketCapService.getMarketCap(ticker);
-    
-    res.json({ 
-      ticker,
-      success: result !== null,
-      data: result,
-    });
-  } catch (error: any) {
-    console.error('[Market Cap API Test] Error:', error);
-    res.status(500).json({ 
-      ticker: req.params.ticker,
-      success: false,
-      error: error.message,
-      stack: error.stack,
-    });
   }
 });
 
