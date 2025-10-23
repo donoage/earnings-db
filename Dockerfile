@@ -27,22 +27,18 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files and Prisma schema
 COPY package*.json ./
 COPY prisma ./prisma/
 
 # Install production dependencies only
 RUN npm install --omit=dev
 
-# Copy Prisma client from builder
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# Generate Prisma Client
+RUN npx prisma generate
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
-
-# Copy migrations
-COPY prisma/migrations ./prisma/migrations
 
 # Expose port
 EXPOSE 3001
