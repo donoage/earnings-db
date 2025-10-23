@@ -1,0 +1,89 @@
+// Prisma schema for earnings database
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Company logos from Polygon
+model Logo {
+  ticker       String   @id @db.VarChar(10)
+  iconUrl      String?  @map("icon_url") @db.Text
+  logoUrl      String?  @map("logo_url") @db.Text
+  companyName  String   @map("company_name") @db.VarChar(255)
+  exchange     String?  @db.VarChar(20)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamp(6)
+
+  @@map("logos")
+}
+
+// Earnings events
+model Earning {
+  id                      String    @id @db.VarChar(50)
+  ticker                  String    @db.VarChar(10)
+  date                    DateTime  @db.Date
+  time                    String?   @db.VarChar(10)
+  dateConfirmed           Int       @default(0) @map("date_confirmed") @db.SmallInt
+  companyName             String    @map("company_name") @db.VarChar(255)
+  exchange                String?   @db.VarChar(20)
+  currency                String?   @db.VarChar(5)
+  period                  String?   @db.VarChar(10)
+  periodYear              Int?      @map("period_year")
+  epsType                 String?   @map("eps_type") @db.VarChar(10)
+  epsEstimate             Decimal?  @map("eps_estimate") @db.Decimal(10, 4)
+  epsActual               Decimal?  @map("eps_actual") @db.Decimal(10, 4)
+  epsPrior                Decimal?  @map("eps_prior") @db.Decimal(10, 4)
+  epsSurprise             Decimal?  @map("eps_surprise") @db.Decimal(10, 4)
+  epsSurprisePercent      Decimal?  @map("eps_surprise_percent") @db.Decimal(10, 4)
+  revenueType             String?   @map("revenue_type") @db.VarChar(10)
+  revenueEstimate         BigInt?   @map("revenue_estimate")
+  revenueActual           BigInt?   @map("revenue_actual")
+  revenuePrior            BigInt?   @map("revenue_prior")
+  revenueSurprise         BigInt?   @map("revenue_surprise")
+  revenueSurprisePercent  Decimal?  @map("revenue_surprise_percent") @db.Decimal(10, 4)
+  importance              Int       @default(0) @db.SmallInt
+  notes                   String?   @db.Text
+  updatedAt               DateTime  @default(now()) @map("updated_at") @db.Timestamp(6)
+
+  @@index([ticker, date], name: "idx_ticker_date")
+  @@index([date, importance], name: "idx_date_importance")
+  @@index([date], name: "idx_date")
+  @@map("earnings")
+}
+
+// Company fundamentals
+model Fundamental {
+  ticker              String    @id @db.VarChar(10)
+  companyName         String    @map("company_name") @db.VarChar(255)
+  exchange            String?   @db.VarChar(20)
+  sector              String?   @db.VarChar(100)
+  industry            String?   @db.VarChar(100)
+  website             String?   @db.VarChar(255)
+  description         String?   @db.Text
+  logoUrl             String?   @map("logo_url") @db.Text
+  marketCap           BigInt?   @map("market_cap")
+  sharesOutstanding   BigInt?   @map("shares_outstanding")
+  currentPrice        Decimal?  @map("current_price") @db.Decimal(12, 4)
+  currency            String?   @db.VarChar(5)
+  priceToEarnings     Decimal?  @map("price_to_earnings") @db.Decimal(10, 4)
+  priceToBook         Decimal?  @map("price_to_book") @db.Decimal(10, 4)
+  priceToSales        Decimal?  @map("price_to_sales") @db.Decimal(10, 4)
+  profitMargin        Decimal?  @map("profit_margin") @db.Decimal(10, 4)
+  operatingMargin     Decimal?  @map("operating_margin") @db.Decimal(10, 4)
+  returnOnAssets      Decimal?  @map("return_on_assets") @db.Decimal(10, 4)
+  returnOnEquity      Decimal?  @map("return_on_equity") @db.Decimal(10, 4)
+  debtToEquity        Decimal?  @map("debt_to_equity") @db.Decimal(10, 4)
+  currentRatio        Decimal?  @map("current_ratio") @db.Decimal(10, 4)
+  freeCashflow        BigInt?   @map("free_cashflow")
+  dividendYield       Decimal?  @map("dividend_yield") @db.Decimal(10, 4)
+  dividendRate        Decimal?  @map("dividend_rate") @db.Decimal(10, 4)
+  employees           Int?
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamp(6)
+
+  @@map("fundamentals")
+}
+
