@@ -66,22 +66,20 @@ class EarningsService {
       }
     }
 
-    // 2. Check PostgreSQL
-    const dbEarnings = await this.fetchFromDatabase(query);
-    
-    if (dbEarnings.length > 0) {
-      // Only cache past earnings (cache forever)
-      if (isPastEarnings) {
+    // 2. For past earnings, check PostgreSQL first (data is complete)
+    // For upcoming earnings, always fetch from Polygon (data changes as companies announce dates)
+    if (isPastEarnings) {
+      const dbEarnings = await this.fetchFromDatabase(query);
+      
+      if (dbEarnings.length > 0) {
         await setCached(cacheKey, dbEarnings, CACHE_TTL.EARNINGS_HISTORICAL);
         console.log(`[Earnings Service] DB hit (past earnings, cached forever) for ${cacheKey} (${dbEarnings.length} events)`);
-      } else {
-        console.log(`[Earnings Service] DB hit (upcoming earnings, not cached) for ${cacheKey} (${dbEarnings.length} events)`);
+        return dbEarnings;
       }
-      return dbEarnings;
     }
 
-    // 3. Fetch from Polygon API (data not in database)
-    console.log(`[Earnings Service] Data not in DB, fetching from Polygon API: ${cacheKey}`);
+    // 3. Fetch from Polygon API (upcoming earnings or data not in database)
+    console.log(`[Earnings Service] Fetching from Polygon API: ${cacheKey} (${isPastEarnings ? 'past data not in DB' : 'upcoming earnings - always fetch fresh'})`);
     return await this.fetchFromPolygon(query);
   }
 
