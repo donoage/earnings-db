@@ -22,14 +22,14 @@ interface EarningsEvent {
   date: string;
   time?: string;
   importance?: number;
-  epsActual?: number;
-  epsEstimate?: number;
-  revenueActual?: number;
-  revenueEstimate?: number;
-  companyName: string;
+  eps_actual?: number;
+  eps_estimate?: number;
+  revenue_actual?: number;
+  revenue_estimate?: number;
+  name: string;
   currency?: string;
   period?: string;
-  periodYear?: number;
+  period_year?: number;
 }
 
 interface EarningsQuery {
@@ -143,14 +143,14 @@ class EarningsService {
         date: result.date,
         time: result.time,
         importance: result.importance,
-        epsActual: result.actual_eps,
-        epsEstimate: result.estimated_eps,
-        revenueActual: result.actual_revenue,
-        revenueEstimate: result.estimated_revenue,
-        companyName: result.company_name || result.ticker,
+        eps_actual: result.actual_eps,
+        eps_estimate: result.estimated_eps,
+        revenue_actual: result.actual_revenue,
+        revenue_estimate: result.estimated_revenue,
+        name: result.company_name || result.ticker,
         currency: result.currency,
         period: result.fiscal_period,
-        periodYear: result.fiscal_year,
+        period_year: result.fiscal_year,
       }));
 
       // Store in database
@@ -189,14 +189,14 @@ class EarningsService {
             date: new Date(earning.date),
             time: earning.time,
             importance: earning.importance || 0,
-            epsActual: earning.epsActual,
-            epsEstimate: earning.epsEstimate,
-            revenueActual: earning.revenueActual ? BigInt(earning.revenueActual) : null,
-            revenueEstimate: earning.revenueEstimate ? BigInt(earning.revenueEstimate) : null,
-            companyName: earning.companyName,
+            epsActual: earning.eps_actual,
+            epsEstimate: earning.eps_estimate,
+            revenueActual: earning.revenue_actual ? BigInt(earning.revenue_actual) : null,
+            revenueEstimate: earning.revenue_estimate ? BigInt(earning.revenue_estimate) : null,
+            companyName: earning.name,
             currency: earning.currency,
             period: earning.period,
-            periodYear: earning.periodYear,
+            periodYear: earning.period_year,
             updatedAt: new Date(),
           },
           create: {
@@ -205,14 +205,14 @@ class EarningsService {
             date: new Date(earning.date),
             time: earning.time,
             importance: earning.importance || 0,
-            epsActual: earning.epsActual,
-            epsEstimate: earning.epsEstimate,
-            revenueActual: earning.revenueActual ? BigInt(earning.revenueActual) : null,
-            revenueEstimate: earning.revenueEstimate ? BigInt(earning.revenueEstimate) : null,
-            companyName: earning.companyName,
+            epsActual: earning.eps_actual,
+            epsEstimate: earning.eps_estimate,
+            revenueActual: earning.revenue_actual ? BigInt(earning.revenue_actual) : null,
+            revenueEstimate: earning.revenue_estimate ? BigInt(earning.revenue_estimate) : null,
+            companyName: earning.name,
             currency: earning.currency,
             period: earning.period,
-            periodYear: earning.periodYear,
+            periodYear: earning.period_year,
           },
         });
       }
@@ -243,14 +243,14 @@ class EarningsService {
       date: db.date.toISOString().split('T')[0],
       time: db.time,
       importance: db.importance,
-      epsActual: db.epsActual ? Number(db.epsActual) : undefined,
-      epsEstimate: db.epsEstimate ? Number(db.epsEstimate) : undefined,
-      revenueActual: db.revenueActual ? Number(db.revenueActual) : undefined,
-      revenueEstimate: db.revenueEstimate ? Number(db.revenueEstimate) : undefined,
-      companyName: db.companyName,
+      eps_actual: db.epsActual ? Number(db.epsActual) : undefined,
+      eps_estimate: db.epsEstimate ? Number(db.epsEstimate) : undefined,
+      revenue_actual: db.revenueActual ? Number(db.revenueActual) : undefined,
+      revenue_estimate: db.revenueEstimate ? Number(db.revenueEstimate) : undefined,
+      name: db.companyName,
       currency: db.currency,
       period: db.period,
-      periodYear: db.periodYear,
+      period_year: db.periodYear,
     };
   }
 }
