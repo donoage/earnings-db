@@ -6,7 +6,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY package.json package-lock.json ./
 COPY tsconfig.json ./
 COPY prisma ./prisma/
 
@@ -28,7 +28,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Copy package files and Prisma schema
-COPY package*.json ./
+COPY package.json package-lock.json ./
 COPY prisma ./prisma/
 
 # Install production dependencies only
