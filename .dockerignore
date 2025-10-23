@@ -40,6 +40,6 @@ docs/
 logs/
 *.log
 
-# Prisma migrations (will be run separately)
-prisma/migrations/
+# Prisma migrations - KEEP THESE, they need to be in the container!
+# prisma/migrations/
 
