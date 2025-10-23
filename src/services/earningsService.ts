@@ -44,28 +44,35 @@ class EarningsService {
    * Get earnings events for a date range
    */
   async getEarnings(query: EarningsQuery): Promise<EarningsEvent[]> {
-    const { dateFrom, dateTo, tickers, importance } = query;
+    const now = new Date();
+    const twoYearsAgo = new Date(now.getTime() - 2 * 365 * 24 * 60 * 60 * 1000);
+    
+    // Determine if this query is for historical data (older than 2 years)
+    const isHistorical = query.dateTo && new Date(query.dateTo) < twoYearsAgo;
     
     // Create cache key based on query parameters
     const cacheKey = this.createCacheKey(query);
     
-    // 1. Check Redis cache
-    const cached = await getCached<EarningsEvent[]>(cacheKey);
-    if (cached) {
-      console.log(`[Earnings Service] Cache hit for ${cacheKey}`);
-      return cached;
+    // 1. Check Redis cache (only for historical data)
+    if (isHistorical) {
+      const cached = await getCached<EarningsEvent[]>(cacheKey);
+      if (cached) {
+        console.log(`[Earnings Service] Cache hit (historical) for ${cacheKey}`);
+        return cached;
+      }
     }
 
     // 2. Check PostgreSQL
     const dbEarnings = await this.fetchFromDatabase(query);
     
     if (dbEarnings.length > 0) {
-      // Determine if this is past or upcoming data
-      const isPast = dateTo && new Date(dateTo) < new Date();
-      const ttl = isPast ? CACHE_TTL.EARNINGS_PAST : CACHE_TTL.EARNINGS_UPCOMING;
-      
-      await setCached(cacheKey, dbEarnings, ttl);
-      console.log(`[Earnings Service] DB hit for ${cacheKey} (${dbEarnings.length} events, TTL: ${ttl}s)`);
+      // Only cache historical earnings (past 2 years)
+      if (isHistorical) {
+        await setCached(cacheKey, dbEarnings, CACHE_TTL.EARNINGS_HISTORICAL);
+        console.log(`[Earnings Service] DB hit (historical, cached forever) for ${cacheKey} (${dbEarnings.length} events)`);
+      } else {
+        console.log(`[Earnings Service] DB hit (recent/upcoming, not cached) for ${cacheKey} (${dbEarnings.length} events)`);
+      }
       return dbEarnings;
     }
 
@@ -149,13 +156,19 @@ class EarningsService {
       // Store in database
       await this.storeInDatabase(earnings);
 
-      // Cache in Redis
-      const cacheKey = this.createCacheKey(query);
-      const isPast = query.dateTo && new Date(query.dateTo) < new Date();
-      const ttl = isPast ? CACHE_TTL.EARNINGS_PAST : CACHE_TTL.EARNINGS_UPCOMING;
-      await setCached(cacheKey, earnings, ttl);
+      // Cache in Redis (only for historical data older than 2 years)
+      const now = new Date();
+      const twoYearsAgo = new Date(now.getTime() - 2 * 365 * 24 * 60 * 60 * 1000);
+      const isHistorical = query.dateTo && new Date(query.dateTo) < twoYearsAgo;
+      
+      if (isHistorical) {
+        const cacheKey = this.createCacheKey(query);
+        await setCached(cacheKey, earnings, CACHE_TTL.EARNINGS_HISTORICAL);
+        console.log(`[Earnings Service] Fetched ${earnings.length} historical events from Polygon (cached forever)`);
+      } else {
+        console.log(`[Earnings Service] Fetched ${earnings.length} recent/upcoming events from Polygon (not cached)`);
+      }
 
-      console.log(`[Earnings Service] Fetched ${earnings.length} events from Polygon`);
       return earnings;
     } catch (error: any) {
       console.error(`[Earnings Service] Error fetching from Polygon:`, error.message);
