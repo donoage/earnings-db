@@ -6,12 +6,13 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json ./
+COPY package.json ./
+COPY package-lock.json* ./
 COPY tsconfig.json ./
 COPY prisma ./prisma/
 
 # Install dependencies
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY src ./src
@@ -28,12 +29,13 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Copy package files and Prisma schema
-COPY package.json package-lock.json ./
+COPY package.json ./
+COPY package-lock.json* ./
 COPY prisma ./prisma/
 
 # Install production dependencies only
 ENV NODE_ENV=production
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Generate Prisma Client
 RUN npx prisma generate
