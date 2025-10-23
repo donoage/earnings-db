@@ -53,7 +53,21 @@ router.get('/', async (req: Request, res: Response) => {
 
     const logos = await logoService.getLogos(tickerList);
     
-    res.json(logos);
+    // Transform to match CompanyLogo interface expected by earnings-web
+    const formattedLogos = logos.map(logo => ({
+      ticker: logo.ticker,
+      exchange: logo.exchange || '',
+      name: logo.companyName,
+      files: {
+        logo_light: logo.logoUrl || undefined,
+        mark_light: logo.iconUrl || undefined,
+        logo_dark: logo.logoUrl || undefined,
+        mark_dark: logo.iconUrl || undefined,
+      },
+      updated: Date.now(),
+    }));
+    
+    res.json(formattedLogos);
   } catch (error: any) {
     console.error('[Logos API] Error:', error);
     res.status(500).json({ error: 'Internal server error' });
