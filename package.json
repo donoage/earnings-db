@@ -17,7 +17,7 @@
     "test:coverage": "jest --coverage",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
-    "prepare": "husky"
+    "prepare": "node -e \"if (process.env.NODE_ENV !== 'production' && process.env.CI !== 'true') { require('child_process').execSync('husky', {stdio: 'inherit'}) }\""
   },
   "keywords": [
     "earnings",

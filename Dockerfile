@@ -10,9 +10,8 @@ COPY package*.json ./
 COPY tsconfig.json ./
 COPY prisma ./prisma/
 
-# Install dependencies (skip Husky in Docker)
-ENV HUSKY=0
-RUN npm install
+# Install dependencies
+RUN npm ci
 
 # Copy source code
 COPY src ./src
@@ -32,9 +31,9 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install production dependencies only (skip Husky in Docker)
-ENV HUSKY=0
-RUN npm install --omit=dev
+# Install production dependencies only
+ENV NODE_ENV=production
+RUN npm ci --omit=dev
 
 # Generate Prisma Client
 RUN npx prisma generate
