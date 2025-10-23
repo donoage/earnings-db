@@ -8,6 +8,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import logosRouter from './routes/logos';
 import healthRouter from './routes/health';
+import fundamentalsRouter from './routes/fundamentals';
+import marketCapRouter from './routes/marketCap';
 
 // Load environment variables
 dotenv.config();
@@ -52,6 +54,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // Routes
 app.use('/health', healthRouter);
 app.use('/api/logos', logosRouter);
+app.use('/api/fundamentals', fundamentalsRouter);
+app.use('/api/market-cap', marketCapRouter);
 
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
@@ -66,6 +70,13 @@ app.get('/', (req: Request, res: Response) => {
         getSingle: '/api/logos/:ticker',
         getMultiple: '/api/logos?tickers=AAPL,MSFT',
         refresh: '/api/logos/:ticker/refresh (POST)',
+      },
+      fundamentals: {
+        getSingle: '/api/fundamentals?ticker=AAPL',
+        getMultiple: '/api/fundamentals?tickers=AAPL,MSFT',
+      },
+      marketCap: {
+        getMultiple: '/api/market-cap?tickers=AAPL,MSFT',
       },
     },
   });
@@ -104,6 +115,9 @@ app.listen(PORT, () => {
   console.log(`  GET  /api/logos/:ticker`);
   console.log(`  GET  /api/logos?tickers=AAPL,MSFT`);
   console.log(`  POST /api/logos/:ticker/refresh`);
+  console.log(`  GET  /api/fundamentals?ticker=AAPL`);
+  console.log(`  GET  /api/fundamentals?tickers=AAPL,MSFT`);
+  console.log(`  GET  /api/market-cap?tickers=AAPL,MSFT`);
   console.log('');
 });
 
