@@ -113,6 +113,13 @@ class MarketCapService {
    */
   private async fetchFromPolygon(ticker: string): Promise<MarketCapData | null> {
     try {
+      if (!POLYGON_API_KEY) {
+        console.error(`[Market Cap Service] POLYGON_API_KEY is not set!`);
+        return null;
+      }
+
+      console.log(`[Market Cap Service] Fetching ${ticker} from Polygon: ${POLYGON_BASE_URL}/v3/reference/tickers/${ticker}`);
+      
       const response = await axios.get(
         `${POLYGON_BASE_URL}/v3/reference/tickers/${ticker}`,
         {
@@ -121,7 +128,10 @@ class MarketCapService {
         }
       );
 
+      console.log(`[Market Cap Service] Polygon response for ${ticker}:`, response.data.status);
+
       if (response.data.status !== 'OK' || !response.data.results) {
+        console.warn(`[Market Cap Service] Invalid response for ${ticker}:`, response.data.status);
         return null;
       }
 
@@ -129,6 +139,7 @@ class MarketCapService {
       const marketCap = result.market_cap;
       
       if (!marketCap) {
+        console.warn(`[Market Cap Service] No market cap found for ${ticker}`);
         return null;
       }
 
