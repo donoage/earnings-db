@@ -10,6 +10,7 @@ import logosRouter from './routes/logos';
 import healthRouter from './routes/health';
 import fundamentalsRouter from './routes/fundamentals';
 import marketCapRouter from './routes/marketCap';
+import earningsRouter from './routes/earnings';
 
 // Load environment variables
 dotenv.config();
@@ -56,6 +57,7 @@ app.use('/health', healthRouter);
 app.use('/api/logos', logosRouter);
 app.use('/api/fundamentals', fundamentalsRouter);
 app.use('/api/market-cap', marketCapRouter);
+app.use('/api/earnings', earningsRouter);
 
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
@@ -77,6 +79,10 @@ app.get('/', (req: Request, res: Response) => {
       },
       marketCap: {
         getMultiple: '/api/market-cap?tickers=AAPL,MSFT',
+      },
+      earnings: {
+        getRange: '/api/earnings?dateFrom=2025-01-01&dateTo=2025-01-31',
+        getWithImportance: '/api/earnings?dateFrom=2025-01-01&dateTo=2025-01-31&importance=5',
       },
     },
   });
@@ -118,6 +124,7 @@ app.listen(PORT, () => {
   console.log(`  GET  /api/fundamentals?ticker=AAPL`);
   console.log(`  GET  /api/fundamentals?tickers=AAPL,MSFT`);
   console.log(`  GET  /api/market-cap?tickers=AAPL,MSFT`);
+  console.log(`  GET  /api/earnings?dateFrom=2025-01-01&dateTo=2025-01-31`);
   console.log('');
 });
 
