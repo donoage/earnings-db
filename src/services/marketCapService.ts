@@ -170,6 +170,11 @@ class MarketCapService {
       return marketCapData;
     } catch (error: any) {
       console.error(`[Market Cap Service] Error fetching ${ticker}:`, error.message);
+      console.error(`[Market Cap Service] Full error:`, error);
+      if (error.response) {
+        console.error(`[Market Cap Service] Response status:`, error.response.status);
+        console.error(`[Market Cap Service] Response data:`, error.response.data);
+      }
       return null;
     }
   }

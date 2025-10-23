@@ -24,8 +24,12 @@ interface EarningsEvent {
   importance?: number;
   eps_actual?: number;
   eps_estimate?: number;
+  eps_surprise?: number;
+  eps_surprise_percent?: number;
   revenue_actual?: number;
   revenue_estimate?: number;
+  revenue_surprise?: number;
+  revenue_surprise_percent?: number;
   name: string;
   currency?: string;
   period?: string;
@@ -76,8 +80,8 @@ class EarningsService {
       return dbEarnings;
     }
 
-    // 3. Fetch from Polygon API
-    console.log(`[Earnings Service] Fetching from Polygon API: ${cacheKey}`);
+    // 3. Fetch from Polygon API (data not in database)
+    console.log(`[Earnings Service] Data not in DB, fetching from Polygon API: ${cacheKey}`);
     return await this.fetchFromPolygon(query);
   }
 
@@ -145,8 +149,12 @@ class EarningsService {
         importance: result.importance,
         eps_actual: result.actual_eps,
         eps_estimate: result.estimated_eps,
+        eps_surprise: result.eps_surprise,
+        eps_surprise_percent: result.eps_surprise_percent,
         revenue_actual: result.actual_revenue,
         revenue_estimate: result.estimated_revenue,
+        revenue_surprise: result.revenue_surprise,
+        revenue_surprise_percent: result.revenue_surprise_percent,
         name: result.company_name || result.ticker,
         currency: result.currency,
         period: result.fiscal_period,
