@@ -40,6 +40,10 @@ RUN npx prisma generate
 # Copy built application
 COPY --from=builder /app/dist ./dist
 
+# Copy entrypoint script
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 # Expose port
 EXPOSE 3001
 
@@ -47,6 +51,6 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-# Start application with migration
-CMD npx prisma migrate deploy && npm start
+# Use entrypoint script to run migrations and start app
+ENTRYPOINT ["/app/entrypoint.sh"]
 
