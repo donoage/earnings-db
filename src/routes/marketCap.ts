@@ -51,18 +51,26 @@ router.get('/', async (req: Request, res: Response) => {
     const tickerList = tickers.split(',').map(t => t.trim()).filter(t => t.length > 0);
     
     if (tickerList.length === 0) {
-      return res.json({ marketCaps: [] });
+      return res.json({ marketCaps: {} });
     }
 
-    const marketCaps = await marketCapService.getMarketCaps(tickerList);
+    const marketCapsArray = await marketCapService.getMarketCaps(tickerList);
+    
+    // Transform array to object: { AAPL: 3000000000, MSFT: 2500000000, ... }
+    const marketCaps: Record<string, number> = {};
+    marketCapsArray.forEach(item => {
+      if (item && item.ticker && item.marketCap !== null) {
+        marketCaps[item.ticker] = item.marketCap;
+      }
+    });
     
     // If debug mode, return detailed info
     if (debug === 'true') {
       return res.json({ 
         marketCaps,
         requested: tickerList,
-        found: marketCaps.map(m => m.ticker),
-        missing: tickerList.filter(t => !marketCaps.some(m => m.ticker === t.toUpperCase())),
+        found: Object.keys(marketCaps),
+        missing: tickerList.filter(t => !marketCaps[t.toUpperCase()]),
       });
     }
     
