@@ -183,53 +183,70 @@ class EarningsService {
   }
 
   /**
-   * Store earnings in database
+   * Store earnings in database using batch operations
    */
   private async storeInDatabase(earnings: EarningsEvent[]): Promise<void> {
+    if (earnings.length === 0) return;
+    
     try {
-      for (const earning of earnings) {
-        await prisma.earning.upsert({
-          where: { id: earning.id },
-          update: {
-            ticker: earning.ticker,
-            date: new Date(earning.date),
-            time: earning.time,
-            importance: earning.importance || 0,
-            epsActual: earning.eps_actual,
-            epsEstimate: earning.eps_estimate,
-            epsSurprise: earning.eps_surprise,
-            epsSurprisePercent: earning.eps_surprise_percent,
-            revenueActual: earning.revenue_actual ? BigInt(earning.revenue_actual) : null,
-            revenueEstimate: earning.revenue_estimate ? BigInt(earning.revenue_estimate) : null,
-            revenueSurprise: earning.revenue_surprise ? BigInt(earning.revenue_surprise) : null,
-            revenueSurprisePercent: earning.revenue_surprise_percent,
-            companyName: earning.name,
-            currency: earning.currency,
-            period: earning.period,
-            periodYear: earning.period_year,
-            updatedAt: new Date(),
-          },
-          create: {
-            id: earning.id,
-            ticker: earning.ticker,
-            date: new Date(earning.date),
-            time: earning.time,
-            importance: earning.importance || 0,
-            epsActual: earning.eps_actual,
-            epsEstimate: earning.eps_estimate,
-            epsSurprise: earning.eps_surprise,
-            epsSurprisePercent: earning.eps_surprise_percent,
-            revenueActual: earning.revenue_actual ? BigInt(earning.revenue_actual) : null,
-            revenueEstimate: earning.revenue_estimate ? BigInt(earning.revenue_estimate) : null,
-            revenueSurprise: earning.revenue_surprise ? BigInt(earning.revenue_surprise) : null,
-            revenueSurprisePercent: earning.revenue_surprise_percent,
-            companyName: earning.name,
-            currency: earning.currency,
-            period: earning.period,
-            periodYear: earning.period_year,
-          },
-        });
+      const BATCH_SIZE = 50;
+      const batches = [];
+      
+      for (let i = 0; i < earnings.length; i += BATCH_SIZE) {
+        batches.push(earnings.slice(i, i + BATCH_SIZE));
       }
+      
+      console.log(`[Earnings Service] Storing ${earnings.length} earnings in ${batches.length} batches`);
+      
+      for (const batch of batches) {
+        await prisma.$transaction(
+          batch.map(earning => 
+            prisma.earning.upsert({
+              where: { id: earning.id },
+              update: {
+                ticker: earning.ticker,
+                date: new Date(earning.date),
+                time: earning.time,
+                importance: earning.importance || 0,
+                epsActual: earning.eps_actual,
+                epsEstimate: earning.eps_estimate,
+                epsSurprise: earning.eps_surprise,
+                epsSurprisePercent: earning.eps_surprise_percent,
+                revenueActual: earning.revenue_actual ? BigInt(earning.revenue_actual) : null,
+                revenueEstimate: earning.revenue_estimate ? BigInt(earning.revenue_estimate) : null,
+                revenueSurprise: earning.revenue_surprise ? BigInt(earning.revenue_surprise) : null,
+                revenueSurprisePercent: earning.revenue_surprise_percent,
+                companyName: earning.name,
+                currency: earning.currency,
+                period: earning.period,
+                periodYear: earning.period_year,
+                updatedAt: new Date(),
+              },
+              create: {
+                id: earning.id,
+                ticker: earning.ticker,
+                date: new Date(earning.date),
+                time: earning.time,
+                importance: earning.importance || 0,
+                epsActual: earning.eps_actual,
+                epsEstimate: earning.eps_estimate,
+                epsSurprise: earning.eps_surprise,
+                epsSurprisePercent: earning.eps_surprise_percent,
+                revenueActual: earning.revenue_actual ? BigInt(earning.revenue_actual) : null,
+                revenueEstimate: earning.revenue_estimate ? BigInt(earning.revenue_estimate) : null,
+                revenueSurprise: earning.revenue_surprise ? BigInt(earning.revenue_surprise) : null,
+                revenueSurprisePercent: earning.revenue_surprise_percent,
+                companyName: earning.name,
+                currency: earning.currency,
+                period: earning.period,
+                periodYear: earning.period_year,
+              },
+            })
+          )
+        );
+      }
+      
+      console.log(`[Earnings Service] Successfully stored ${earnings.length} earnings`);
     } catch (error: any) {
       console.error(`[Earnings Service] Error storing in database:`, error.message);
     }
