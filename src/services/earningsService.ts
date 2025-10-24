@@ -269,22 +269,29 @@ class EarningsService {
     
     // Fetch market caps for all tickers
     const marketCaps = await marketCapService.getMarketCaps(tickers);
-    const tickersWithMarketCap = new Set(marketCaps.map(mc => mc.ticker));
+    const marketCapMap = new Map(marketCaps.map(mc => [mc.ticker.toUpperCase(), mc.marketCap]));
     
     // Filter earnings to only include tickers with market cap data
     const filteredOut: string[] = [];
     const filtered = earnings.filter(earning => {
-      const hasMarketCap = tickersWithMarketCap.has(earning.ticker.toUpperCase());
+      const hasMarketCap = marketCapMap.has(earning.ticker.toUpperCase());
       if (!hasMarketCap) {
         filteredOut.push(earning.ticker);
       }
       return hasMarketCap;
     });
     
+    // Sort by market cap (descending) - largest companies first
+    filtered.sort((a, b) => {
+      const marketCapA = marketCapMap.get(a.ticker.toUpperCase()) || 0;
+      const marketCapB = marketCapMap.get(b.ticker.toUpperCase()) || 0;
+      return marketCapB - marketCapA;
+    });
+    
     if (filteredOut.length > 0) {
       console.log(`[Earnings Service] Filtered out ${filteredOut.length} tickers without market cap: ${filteredOut.join(', ')}`);
     }
-    console.log(`[Earnings Service] Market cap filter: ${earnings.length} → ${filtered.length} earnings`);
+    console.log(`[Earnings Service] Market cap filter: ${earnings.length} → ${filtered.length} earnings (sorted by market cap)`);
     return filtered;
   }
 
