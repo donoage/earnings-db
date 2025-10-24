@@ -22,6 +22,14 @@ interface MarketCapData {
   marketCap: number;
   week52High?: number;
   week52Low?: number;
+  currentPrice?: number;
+  sharesOutstanding?: number;
+  sector?: string;
+  industry?: string;
+  description?: string;
+  website?: string;
+  exchange?: string;
+  companyName?: string;
   updatedAt: Date;
 }
 
@@ -139,6 +147,16 @@ class MarketCapService {
         return null;
       }
 
+      // Extract additional fields from ticker details
+      const companyName = result.name;
+      const currentPrice = result.last_updated_utc ? undefined : result.close_price; // Use snapshot for current price
+      const sharesOutstanding = result.share_class_shares_outstanding || result.weighted_shares_outstanding;
+      const sector = result.sic_description; // SIC description as sector
+      const industry = result.primary_exchange; // Can be enhanced with better mapping
+      const description = result.description;
+      const website = result.homepage_url;
+      const exchange = result.primary_exchange;
+
       // Fetch 52-week high/low using aggregates (past year of daily bars)
       const oneYearAgo = new Date();
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
@@ -147,6 +165,7 @@ class MarketCapService {
 
       let week52High: number | undefined;
       let week52Low: number | undefined;
+      let snapshotPrice: number | undefined;
 
       try {
         const aggregatesResponse = await axios.get(
@@ -167,6 +186,8 @@ class MarketCapService {
           if (bars.length > 0) {
             week52High = Math.max(...bars.map((bar: any) => bar.h));
             week52Low = Math.min(...bars.map((bar: any) => bar.l));
+            // Use most recent close as current price
+            snapshotPrice = bars[bars.length - 1].c;
           }
         }
       } catch (aggError: any) {
@@ -179,6 +200,14 @@ class MarketCapService {
         marketCap,
         week52High,
         week52Low,
+        currentPrice: snapshotPrice || currentPrice,
+        sharesOutstanding,
+        sector,
+        industry,
+        description,
+        website,
+        exchange,
+        companyName,
         updatedAt: new Date(),
       };
 
@@ -189,14 +218,29 @@ class MarketCapService {
           marketCap: marketCapData.marketCap,
           week52High: marketCapData.week52High,
           week52Low: marketCapData.week52Low,
+          currentPrice: marketCapData.currentPrice,
+          sharesOutstanding: marketCapData.sharesOutstanding,
+          sector: marketCapData.sector,
+          industry: marketCapData.industry,
+          description: marketCapData.description,
+          website: marketCapData.website,
+          exchange: marketCapData.exchange,
+          companyName: marketCapData.companyName,
           updatedAt: new Date(),
         },
         create: {
           ticker: marketCapData.ticker,
-          companyName: result.name || marketCapData.ticker,
+          companyName: marketCapData.companyName || marketCapData.ticker,
           marketCap: marketCapData.marketCap,
           week52High: marketCapData.week52High,
           week52Low: marketCapData.week52Low,
+          currentPrice: marketCapData.currentPrice,
+          sharesOutstanding: marketCapData.sharesOutstanding,
+          sector: marketCapData.sector,
+          industry: marketCapData.industry,
+          description: marketCapData.description,
+          website: marketCapData.website,
+          exchange: marketCapData.exchange,
         },
       });
 
@@ -205,7 +249,7 @@ class MarketCapService {
       const TWELVE_HOURS = 12 * 60 * 60 * 1000;
       await setCached(cacheKey, marketCapData, TWELVE_HOURS);
 
-      console.log(`[Market Cap Service] Fetched ${ticker}: marketCap=${marketCap}, 52wHigh=${week52High}, 52wLow=${week52Low}`);
+      console.log(`[Market Cap Service] Fetched ${ticker}: marketCap=${marketCap}, price=${snapshotPrice || currentPrice}, 52wHigh=${week52High}, 52wLow=${week52Low}, sector=${sector}`);
 
       return marketCapData;
     } catch (error: any) {
