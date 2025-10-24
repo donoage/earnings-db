@@ -203,12 +203,13 @@ class FundamentalsService {
   private async fetchFromPolygon(ticker: string): Promise<FundamentalsData | null> {
     try {
       // Fetch all data in parallel
-      const [tickerInfo, ratios, incomeStatement, balanceSheet, cashFlow] = await Promise.allSettled([
+      const [tickerInfo, ratios, incomeStatement, balanceSheet, cashFlow, week52Data] = await Promise.allSettled([
         this.fetchTickerInfo(ticker),
         this.fetchRatios(ticker),
         this.fetchIncomeStatement(ticker),
         this.fetchBalanceSheet(ticker),
         this.fetchCashFlow(ticker),
+        this.fetch52WeekData(ticker),
       ]);
 
       // Start with basic ticker info
@@ -242,6 +243,11 @@ class FundamentalsService {
         Object.assign(fundamentalsData, cashFlow.value);
       }
 
+      // Merge 52-week data
+      if (week52Data.status === 'fulfilled' && week52Data.value) {
+        Object.assign(fundamentalsData, week52Data.value);
+      }
+
       // Store in PostgreSQL
       // All numeric fields are now Decimal type in the schema
       const updateData = {
@@ -257,6 +263,8 @@ class FundamentalsService {
         sharesOutstanding: fundamentalsData.sharesOutstanding,
         currentPrice: fundamentalsData.currentPrice,
         averageVolume: fundamentalsData.averageVolume,
+        week52High: fundamentalsData.fiftyTwoWeekHigh,
+        week52Low: fundamentalsData.fiftyTwoWeekLow,
         
         // Valuation ratios
         priceToEarnings: fundamentalsData.priceToEarnings,
@@ -572,6 +580,49 @@ class FundamentalsService {
       };
     } catch (error: any) {
       console.error(`[Fundamentals Service] Error fetching cash flow for ${ticker}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch 52-week high/low data from Polygon aggregates API
+   */
+  private async fetch52WeekData(ticker: string): Promise<Partial<FundamentalsData> | null> {
+    try {
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      const fromDate = oneYearAgo.toISOString().split('T')[0];
+      const toDate = new Date().toISOString().split('T')[0];
+      
+      const response = await axios.get(
+        `${POLYGON_BASE_URL}/v2/aggs/ticker/${ticker}/range/1/day/${fromDate}/${toDate}`,
+        {
+          params: { 
+            apiKey: POLYGON_API_KEY,
+            adjusted: true,
+            sort: 'asc',
+            limit: 50000
+          },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status !== 'OK' || !response.data.results || response.data.results.length === 0) {
+        return null;
+      }
+
+      const bars = response.data.results;
+      const fiftyTwoWeekHigh = Math.max(...bars.map((bar: any) => bar.h));
+      const fiftyTwoWeekLow = Math.min(...bars.map((bar: any) => bar.l));
+
+      console.log(`[Fundamentals Service] ✓ 52-week data for ${ticker}: high=${fiftyTwoWeekHigh}, low=${fiftyTwoWeekLow}`);
+
+      return {
+        fiftyTwoWeekHigh,
+        fiftyTwoWeekLow,
+      };
+    } catch (error: any) {
+      console.error(`[Fundamentals Service] Error fetching 52-week data for ${ticker}:`, error.message);
       return null;
     }
   }
