@@ -84,8 +84,11 @@ class EarningsService {
         console.log(`[EarningsService.getEarnings:${earningsId}] ✅ DB HIT: ${dbEarnings.length} earnings, filtering by market cap...`);
         // Filter by market cap availability
         const filtered = await this.filterByMarketCap(dbEarnings);
-        await setCached(cacheKey, filtered, CACHE_TTL.EARNINGS_HISTORICAL);
-        console.log(`[EarningsService.getEarnings:${earningsId}] ✅ DB hit (past earnings, cached) for ${cacheKey} (${filtered.length} events after market cap filter)`);
+        // Cache in background (non-blocking)
+        setCached(cacheKey, filtered, CACHE_TTL.EARNINGS_HISTORICAL).catch(err => {
+          console.error(`[EarningsService.getEarnings:${earningsId}] Error caching to Redis:`, err.message);
+        });
+        console.log(`[EarningsService.getEarnings:${earningsId}] ✅ DB hit (past earnings, caching in background) for ${cacheKey} (${filtered.length} events after market cap filter)`);
         return filtered;
       }
       console.log(`[EarningsService.getEarnings:${earningsId}] ❌ DB MISS: no data found`);
@@ -194,19 +197,21 @@ class EarningsService {
 
       console.log(`[Polygon:${polygonId}] ✅ Mapped ${earnings.length} earnings events`);
 
-      // Store in database
-      console.log(`[Polygon:${polygonId}] 💾 Storing in database...`);
-      await this.storeInDatabase(earnings);
+      // Store in database (non-blocking)
+      this.storeInDatabase(earnings);
 
-      // Cache in Redis (only for past earnings)
+      // Cache in Redis (non-blocking, only for past earnings)
       const now = new Date();
       now.setHours(0, 0, 0, 0); // Start of today
       const isPastEarnings = query.dateTo && new Date(query.dateTo) < now;
       
       if (isPastEarnings) {
         const cacheKey = this.createCacheKey(query);
-        await setCached(cacheKey, earnings, CACHE_TTL.EARNINGS_HISTORICAL);
-        console.log(`[Polygon:${polygonId}] ✅ Fetched ${earnings.length} past earnings from Polygon (cached)`);
+        // Cache in background
+        setCached(cacheKey, earnings, CACHE_TTL.EARNINGS_HISTORICAL).catch(err => {
+          console.error(`[Polygon:${polygonId}] Error caching to Redis:`, err.message);
+        });
+        console.log(`[Polygon:${polygonId}] ✅ Fetched ${earnings.length} past earnings from Polygon (caching in background)`);
       } else {
         console.log(`[Polygon:${polygonId}] ✅ Fetched ${earnings.length} upcoming earnings from Polygon (not cached)`);
       }
