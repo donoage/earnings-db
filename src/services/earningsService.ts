@@ -231,78 +231,82 @@ class EarningsService {
   }
 
   /**
-   * Store earnings in database using batch operations
+   * Store earnings in database using batch operations (async, non-blocking)
    */
-  private async storeInDatabase(earnings: EarningsEvent[]): Promise<void> {
+  private storeInDatabase(earnings: EarningsEvent[]): void {
     if (earnings.length === 0) return;
     
-    try {
-      const BATCH_SIZE = 50;
-      const batches = [];
-      
-      for (let i = 0; i < earnings.length; i += BATCH_SIZE) {
-        batches.push(earnings.slice(i, i + BATCH_SIZE));
+    // Store in background - don't block the response
+    (async () => {
+      try {
+        const BATCH_SIZE = 100; // Increased batch size
+        const batches = [];
+        
+        for (let i = 0; i < earnings.length; i += BATCH_SIZE) {
+          batches.push(earnings.slice(i, i + BATCH_SIZE));
+        }
+        
+        console.log(`[Earnings Service] Storing ${earnings.length} earnings in ${batches.length} batches (background)`);
+        
+        for (const batch of batches) {
+          await prisma.$transaction(
+            batch.map(earning => 
+              prisma.earning.upsert({
+                where: { id: earning.id },
+                update: {
+                  ticker: earning.ticker,
+                  date: new Date(earning.date),
+                  time: earning.time,
+                  importance: earning.importance || 0,
+                  epsActual: earning.eps_actual,
+                  epsEstimate: earning.eps_estimate,
+                  epsSurprise: earning.eps_surprise,
+                  epsSurprisePercent: earning.eps_surprise_percent,
+                  revenueActual: earning.revenue_actual,
+                  revenueEstimate: earning.revenue_estimate,
+                  revenueSurprise: earning.revenue_surprise,
+                  revenueSurprisePercent: earning.revenue_surprise_percent,
+                  companyName: earning.name,
+                  currency: earning.currency,
+                  period: earning.period,
+                  periodYear: earning.period_year,
+                  updatedAt: new Date(),
+                },
+                create: {
+                  id: earning.id,
+                  ticker: earning.ticker,
+                  date: new Date(earning.date),
+                  time: earning.time,
+                  importance: earning.importance || 0,
+                  epsActual: earning.eps_actual,
+                  epsEstimate: earning.eps_estimate,
+                  epsSurprise: earning.eps_surprise,
+                  epsSurprisePercent: earning.eps_surprise_percent,
+                  revenueActual: earning.revenue_actual,
+                  revenueEstimate: earning.revenue_estimate,
+                  revenueSurprise: earning.revenue_surprise,
+                  revenueSurprisePercent: earning.revenue_surprise_percent,
+                  companyName: earning.name,
+                  currency: earning.currency,
+                  period: earning.period,
+                  periodYear: earning.period_year,
+                },
+              })
+            )
+          );
+        }
+        
+        console.log(`[Earnings Service] Successfully stored ${earnings.length} earnings`);
+      } catch (error: any) {
+        console.error(`[Earnings Service] Error storing in database:`, error.message);
       }
-      
-      console.log(`[Earnings Service] Storing ${earnings.length} earnings in ${batches.length} batches`);
-      
-      for (const batch of batches) {
-        await prisma.$transaction(
-          batch.map(earning => 
-            prisma.earning.upsert({
-              where: { id: earning.id },
-              update: {
-                ticker: earning.ticker,
-                date: new Date(earning.date),
-                time: earning.time,
-                importance: earning.importance || 0,
-                epsActual: earning.eps_actual,
-                epsEstimate: earning.eps_estimate,
-                epsSurprise: earning.eps_surprise,
-                epsSurprisePercent: earning.eps_surprise_percent,
-                revenueActual: earning.revenue_actual,
-                revenueEstimate: earning.revenue_estimate,
-                revenueSurprise: earning.revenue_surprise,
-                revenueSurprisePercent: earning.revenue_surprise_percent,
-                companyName: earning.name,
-                currency: earning.currency,
-                period: earning.period,
-                periodYear: earning.period_year,
-                updatedAt: new Date(),
-              },
-              create: {
-                id: earning.id,
-                ticker: earning.ticker,
-                date: new Date(earning.date),
-                time: earning.time,
-                importance: earning.importance || 0,
-                epsActual: earning.eps_actual,
-                epsEstimate: earning.eps_estimate,
-                epsSurprise: earning.eps_surprise,
-                epsSurprisePercent: earning.eps_surprise_percent,
-                revenueActual: earning.revenue_actual,
-                revenueEstimate: earning.revenue_estimate,
-                revenueSurprise: earning.revenue_surprise,
-                revenueSurprisePercent: earning.revenue_surprise_percent,
-                companyName: earning.name,
-                currency: earning.currency,
-                period: earning.period,
-                periodYear: earning.period_year,
-              },
-            })
-          )
-        );
-      }
-      
-      console.log(`[Earnings Service] Successfully stored ${earnings.length} earnings`);
-    } catch (error: any) {
-      console.error(`[Earnings Service] Error storing in database:`, error.message);
-    }
+    })();
   }
 
   /**
    * Filter earnings by market cap availability
    * Only include earnings for companies that have market cap data
+   * Optimized: Only fetch from cache, skip API calls for missing tickers
    */
   private async filterByMarketCap(earnings: EarningsEvent[]): Promise<EarningsEvent[]> {
     if (earnings.length === 0) return earnings;
@@ -310,8 +314,8 @@ class EarningsService {
     // Get unique tickers
     const tickers = [...new Set(earnings.map(e => e.ticker))];
     
-    // Fetch market caps for all tickers
-    const marketCaps = await marketCapService.getMarketCaps(tickers);
+    // Only get cached market caps - don't make API calls (too slow)
+    const marketCaps = await this.getCachedMarketCaps(tickers);
     const marketCapMap = new Map(marketCaps.map(mc => [mc.ticker.toUpperCase(), mc.marketCap]));
     
     // Filter earnings to only include tickers with market cap data
@@ -332,10 +336,56 @@ class EarningsService {
     });
     
     if (filteredOut.length > 0) {
-      console.log(`[Earnings Service] Filtered out ${filteredOut.length} tickers without market cap: ${filteredOut.join(', ')}`);
+      console.log(`[Earnings Service] Filtered out ${filteredOut.length} tickers without cached market cap: ${filteredOut.join(', ')}`);
+      // Fetch missing market caps in background (don't block response)
+      this.fetchMissingMarketCaps(filteredOut);
     }
     console.log(`[Earnings Service] Market cap filter: ${earnings.length} → ${filtered.length} earnings (sorted by market cap)`);
     return filtered;
+  }
+
+  /**
+   * Get only cached market caps (fast, no API calls)
+   */
+  private async getCachedMarketCaps(tickers: string[]): Promise<Array<{ticker: string, marketCap: number}>> {
+    const uniqueTickers = [...new Set(tickers.map(t => t.toUpperCase()))];
+    const results: Array<{ticker: string, marketCap: number}> = [];
+    
+    // Check database for all tickers at once
+    const dbResults = await prisma.fundamental.findMany({
+      where: { 
+        ticker: { in: uniqueTickers },
+        marketCap: { not: null }
+      },
+      select: { ticker: true, marketCap: true }
+    });
+    
+    dbResults.forEach(result => {
+      if (result.marketCap) {
+        results.push({
+          ticker: result.ticker,
+          marketCap: Number(result.marketCap)
+        });
+      }
+    });
+    
+    return results;
+  }
+
+  /**
+   * Fetch missing market caps in background (non-blocking)
+   */
+  private fetchMissingMarketCaps(tickers: string[]): void {
+    // Fetch in background - don't await
+    (async () => {
+      try {
+        console.log(`[Earnings Service] Fetching ${tickers.length} missing market caps in background`);
+        await marketCapService.getMarketCaps(tickers);
+        console.log(`[Earnings Service] Background market cap fetch complete`);
+      } catch (error: any) {
+        console.error(`[Earnings Service] Error fetching background market caps:`, error.message);
+      }
+    })();
   }
 
   /**
