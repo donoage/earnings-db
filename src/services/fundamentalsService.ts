@@ -120,6 +120,9 @@ class FundamentalsService {
     // Income statement - revenue should always be available
     if (!data.revenue) missingFields.push('revenue');
     
+    // Cash flow - operating cash flow should be available
+    if (!data.operatingCashFlow) missingFields.push('operatingCashFlow');
+    
     if (missingFields.length > 0) {
       console.log(`[Fundamentals Service] Missing critical fields for ${data.ticker}: ${missingFields.join(', ')}`);
       return true;
