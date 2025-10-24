@@ -49,43 +49,57 @@ class EarningsService {
    * Get earnings events for a date range
    */
   async getEarnings(query: EarningsQuery): Promise<EarningsEvent[]> {
+    const earningsId = Math.random().toString(36).substring(7);
+    console.log(`[EarningsService.getEarnings:${earningsId}] 🚀 Called with:`, query);
+    
     const now = new Date();
     now.setHours(0, 0, 0, 0); // Start of today
     
     // Determine if this query is for past earnings (all dates before today)
     const isPastEarnings = query.dateTo && new Date(query.dateTo) < now;
+    console.log(`[EarningsService.getEarnings:${earningsId}] 📅 isPastEarnings:`, isPastEarnings);
     
     // Create cache key based on query parameters
     const cacheKey = this.createCacheKey(query);
+    console.log(`[EarningsService.getEarnings:${earningsId}] 🔑 Cache key:`, cacheKey);
     
     // 1. Check Redis cache (only for past earnings)
     if (isPastEarnings) {
+      console.log(`[EarningsService.getEarnings:${earningsId}] 🔍 Checking Redis cache...`);
       const cached = await getCached<EarningsEvent[]>(cacheKey);
       if (cached) {
+        console.log(`[EarningsService.getEarnings:${earningsId}] ✅ Redis cache HIT: ${cached.length} earnings`);
         return cached;
       }
+      console.log(`[EarningsService.getEarnings:${earningsId}] ❌ Redis cache MISS`);
     }
 
     // 2. For past earnings, check PostgreSQL first (data is complete)
     // For upcoming earnings, always fetch from Polygon (data changes as companies announce dates)
     if (isPastEarnings) {
+      console.log(`[EarningsService.getEarnings:${earningsId}] 🔍 Checking PostgreSQL database...`);
       const dbEarnings = await this.fetchFromDatabase(query);
       
       if (dbEarnings.length > 0) {
+        console.log(`[EarningsService.getEarnings:${earningsId}] ✅ DB HIT: ${dbEarnings.length} earnings, filtering by market cap...`);
         // Filter by market cap availability
         const filtered = await this.filterByMarketCap(dbEarnings);
         await setCached(cacheKey, filtered, CACHE_TTL.EARNINGS_HISTORICAL);
-        console.log(`[Earnings Service] DB hit (past earnings, cached forever) for ${cacheKey} (${filtered.length} events after market cap filter)`);
+        console.log(`[EarningsService.getEarnings:${earningsId}] ✅ DB hit (past earnings, cached) for ${cacheKey} (${filtered.length} events after market cap filter)`);
         return filtered;
       }
+      console.log(`[EarningsService.getEarnings:${earningsId}] ❌ DB MISS: no data found`);
     }
 
     // 3. Fetch from Polygon API (upcoming earnings or data not in database)
-    console.log(`[Earnings Service] Fetching from Polygon API: ${cacheKey} (${isPastEarnings ? 'past data not in DB' : 'upcoming earnings - always fetch fresh'})`);
+    console.log(`[EarningsService.getEarnings:${earningsId}] 🌐 Fetching from Polygon API: ${cacheKey} (${isPastEarnings ? 'past data not in DB' : 'upcoming earnings - always fetch fresh'})`);
     const earnings = await this.fetchFromPolygon(query);
     
+    console.log(`[EarningsService.getEarnings:${earningsId}] 📊 Polygon returned ${earnings.length} earnings, filtering by market cap...`);
     // Filter by market cap availability
-    return await this.filterByMarketCap(earnings);
+    const filtered = await this.filterByMarketCap(earnings);
+    console.log(`[EarningsService.getEarnings:${earningsId}] ✅ Returning ${filtered.length} filtered earnings`);
+    return filtered;
   }
 
   /**
@@ -123,6 +137,9 @@ class EarningsService {
    * Fetch earnings from Polygon API (Benzinga earnings endpoint)
    */
   private async fetchFromPolygon(query: EarningsQuery): Promise<EarningsEvent[]> {
+    const polygonId = Math.random().toString(36).substring(7);
+    console.log(`[Polygon:${polygonId}] 🚀 Fetching from Polygon API...`);
+    
     try {
       const params: any = {
         apiKey: POLYGON_API_KEY,
@@ -135,12 +152,23 @@ class EarningsService {
       if (query.tickers) params['ticker.any_of'] = query.tickers;
       if (query.importance !== undefined) params['importance.gte'] = query.importance;
 
-      const response = await axios.get(
-        `${POLYGON_BASE_URL}/benzinga/v1/earnings`,
-        { params, timeout: 15000 }
-      );
+      const url = `${POLYGON_BASE_URL}/benzinga/v1/earnings`;
+      console.log(`[Polygon:${polygonId}] 🌐 URL:`, url);
+      console.log(`[Polygon:${polygonId}] 📋 Params:`, { ...params, apiKey: '***' });
+      console.log(`[Polygon:${polygonId}] ⏱️ Timeout: 15000ms`);
+
+      const startTime = Date.now();
+      const response = await axios.get(url, { params, timeout: 15000 });
+      const duration = Date.now() - startTime;
+
+      console.log(`[Polygon:${polygonId}] ✅ Response received in ${duration}ms`);
+      console.log(`[Polygon:${polygonId}] 📊 Status:`, response.status, response.statusText);
+      console.log(`[Polygon:${polygonId}] 📦 Response data status:`, response.data.status);
+      console.log(`[Polygon:${polygonId}] 📦 Has results:`, !!response.data.results);
+      console.log(`[Polygon:${polygonId}] 📦 Results count:`, response.data.results?.length || 0);
 
       if (response.data.status !== 'OK' || !response.data.results) {
+        console.log(`[Polygon:${polygonId}] ⚠️ No valid results, returning empty array`);
         return [];
       }
 
@@ -164,7 +192,10 @@ class EarningsService {
         period_year: result.fiscal_year,
       }));
 
+      console.log(`[Polygon:${polygonId}] ✅ Mapped ${earnings.length} earnings events`);
+
       // Store in database
+      console.log(`[Polygon:${polygonId}] 💾 Storing in database...`);
       await this.storeInDatabase(earnings);
 
       // Cache in Redis (only for past earnings)
@@ -175,14 +206,26 @@ class EarningsService {
       if (isPastEarnings) {
         const cacheKey = this.createCacheKey(query);
         await setCached(cacheKey, earnings, CACHE_TTL.EARNINGS_HISTORICAL);
-        console.log(`[Earnings Service] Fetched ${earnings.length} past earnings from Polygon (cached forever)`);
+        console.log(`[Polygon:${polygonId}] ✅ Fetched ${earnings.length} past earnings from Polygon (cached)`);
       } else {
-        console.log(`[Earnings Service] Fetched ${earnings.length} upcoming earnings from Polygon (not cached)`);
+        console.log(`[Polygon:${polygonId}] ✅ Fetched ${earnings.length} upcoming earnings from Polygon (not cached)`);
       }
 
       return earnings;
     } catch (error: any) {
-      console.error(`[Earnings Service] Error fetching from Polygon:`, error.message);
+      console.error(`[Polygon:${polygonId}] ❌ ERROR fetching from Polygon`);
+      console.error(`[Polygon:${polygonId}] Error type:`, error.constructor?.name);
+      console.error(`[Polygon:${polygonId}] Error message:`, error.message);
+      console.error(`[Polygon:${polygonId}] Error code:`, error.code);
+      
+      if (error.response) {
+        console.error(`[Polygon:${polygonId}] Response status:`, error.response.status);
+        console.error(`[Polygon:${polygonId}] Response data:`, error.response.data);
+      } else if (error.request) {
+        console.error(`[Polygon:${polygonId}] No response received from Polygon`);
+      }
+      
+      console.error(`[Polygon:${polygonId}] Full error stack:`, error.stack);
       return [];
     }
   }
@@ -300,11 +343,31 @@ class EarningsService {
    * Fast endpoint for initial render
    */
   async getPrimaryEarnings(query: EarningsQuery): Promise<EarningsEvent[]> {
-    // Get all earnings (will be cached)
-    const allEarnings = await this.getEarnings(query);
+    const serviceId = Math.random().toString(36).substring(7);
+    console.log(`[EarningsService:${serviceId}] 🚀 getPrimaryEarnings called with:`, query);
     
-    // Split into primary (top 5 per day per session)
-    return this.extractPrimaryEarnings(allEarnings);
+    try {
+      const startTime = Date.now();
+      
+      // Get all earnings (will be cached)
+      console.log(`[EarningsService:${serviceId}] 🔄 Calling getEarnings...`);
+      const allEarnings = await this.getEarnings(query);
+      const fetchDuration = Date.now() - startTime;
+      
+      console.log(`[EarningsService:${serviceId}] ✅ getEarnings returned ${allEarnings.length} earnings in ${fetchDuration}ms`);
+      
+      // Split into primary (top 5 per day per session)
+      console.log(`[EarningsService:${serviceId}] 🔄 Extracting primary earnings...`);
+      const primary = this.extractPrimaryEarnings(allEarnings);
+      const totalDuration = Date.now() - startTime;
+      
+      console.log(`[EarningsService:${serviceId}] ✅ Extracted ${primary.length} primary earnings (total ${totalDuration}ms)`);
+      return primary;
+    } catch (error: any) {
+      console.error(`[EarningsService:${serviceId}] ❌ ERROR in getPrimaryEarnings`);
+      console.error(`[EarningsService:${serviceId}] Error:`, error);
+      throw error;
+    }
   }
 
   /**

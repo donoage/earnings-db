@@ -15,8 +15,12 @@ const router = express.Router();
  * Example: /api/earnings/primary?dateFrom=2025-01-01&dateTo=2025-01-31
  */
 router.get('/primary', async (req: Request, res: Response) => {
+  const requestId = Math.random().toString(36).substring(7);
+  console.log(`[Earnings API:${requestId}] 🚀 PRIMARY endpoint called`);
+  
   try {
     const { dateFrom, dateTo, tickers, importance } = req.query;
+    console.log(`[Earnings API:${requestId}] 📋 Query params:`, { dateFrom, dateTo, tickers, importance });
     
     const query: any = {};
     if (dateFrom && typeof dateFrom === 'string') query.dateFrom = dateFrom;
@@ -24,12 +28,22 @@ router.get('/primary', async (req: Request, res: Response) => {
     if (tickers && typeof tickers === 'string') query.tickers = tickers;
     if (importance && typeof importance === 'string') query.importance = parseInt(importance);
     
+    console.log(`[Earnings API:${requestId}] 🔄 Calling earningsService.getPrimaryEarnings with:`, query);
+    const startTime = Date.now();
+    
     const earnings = await earningsService.getPrimaryEarnings(query);
+    
+    const duration = Date.now() - startTime;
+    console.log(`[Earnings API:${requestId}] ✅ Service returned ${earnings.length} earnings in ${duration}ms`);
+    console.log(`[Earnings API:${requestId}] 📤 Sending response`);
     
     res.json(earnings);
   } catch (error: any) {
-    console.error('[Earnings API] Error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error(`[Earnings API:${requestId}] ❌ ERROR in PRIMARY endpoint`);
+    console.error(`[Earnings API:${requestId}] Error type:`, error.constructor?.name);
+    console.error(`[Earnings API:${requestId}] Error message:`, error.message);
+    console.error(`[Earnings API:${requestId}] Error stack:`, error.stack);
+    res.status(500).json({ error: 'Internal server error', requestId });
   }
 });
 
