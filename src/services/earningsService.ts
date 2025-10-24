@@ -296,6 +296,67 @@ class EarningsService {
   }
 
   /**
+   * Get primary earnings (top 5 per day per session)
+   * Fast endpoint for initial render
+   */
+  async getPrimaryEarnings(query: EarningsQuery): Promise<EarningsEvent[]> {
+    // Get all earnings (will be cached)
+    const allEarnings = await this.getEarnings(query);
+    
+    // Split into primary (top 5 per day per session)
+    return this.extractPrimaryEarnings(allEarnings);
+  }
+
+  /**
+   * Get secondary earnings (remaining after primary)
+   * Lazy loaded in background
+   */
+  async getSecondaryEarnings(query: EarningsQuery): Promise<EarningsEvent[]> {
+    // Get all earnings (will use cache from primary call)
+    const allEarnings = await this.getEarnings(query);
+    
+    // Get primary to exclude them
+    const primary = this.extractPrimaryEarnings(allEarnings);
+    const primaryIds = new Set(primary.map(e => e.id));
+    
+    // Return everything except primary
+    return allEarnings.filter(e => !primaryIds.has(e.id));
+  }
+
+  /**
+   * Extract top 5 earnings per day per session (before open / after close)
+   */
+  private extractPrimaryEarnings(earnings: EarningsEvent[]): EarningsEvent[] {
+    // Group by date
+    const byDate = new Map<string, EarningsEvent[]>();
+    earnings.forEach(earning => {
+      if (!byDate.has(earning.date)) {
+        byDate.set(earning.date, []);
+      }
+      byDate.get(earning.date)!.push(earning);
+    });
+
+    const primary: EarningsEvent[] = [];
+
+    // For each date, get top 5 before open and top 5 after close
+    byDate.forEach((dayEarnings) => {
+      // Split by session
+      const beforeOpen = dayEarnings.filter(e => 
+        !e.time || e.time === 'bmo' || e.time === 'time-pre-market' || (e.time && e.time.includes('before'))
+      );
+      const afterClose = dayEarnings.filter(e => 
+        e.time && (e.time === 'amc' || e.time === 'time-after-hours' || e.time.includes('after'))
+      );
+
+      // Take top 5 from each session (already sorted by market cap)
+      primary.push(...beforeOpen.slice(0, 5));
+      primary.push(...afterClose.slice(0, 5));
+    });
+
+    return primary;
+  }
+
+  /**
    * Create cache key from query parameters
    */
   private createCacheKey(query: EarningsQuery): string {
