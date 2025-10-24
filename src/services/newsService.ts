@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { PrismaClient, News } from '@prisma/client';
-import { redisClient } from '../utils/redis';
+import { redis } from '../utils/redis';
 
 const prisma = new PrismaClient();
 const POLYGON_API_KEY = process.env.POLYGON_API_KEY;
@@ -304,7 +304,7 @@ class NewsService {
    */
   private async getFromCache(key: string): Promise<NewsData[] | null> {
     try {
-      const cached = await redisClient.get(key);
+      const cached = await redis.get(key);
       if (cached) {
         return JSON.parse(cached);
       }
@@ -319,7 +319,7 @@ class NewsService {
    */
   private async saveToCache(key: string, data: NewsData[]): Promise<void> {
     try {
-      await redisClient.setex(key, CACHE_TTL, JSON.stringify(data));
+      await redis.setex(key, CACHE_TTL, JSON.stringify(data));
     } catch (error: any) {
       console.error('[News Service] Redis set error:', error.message);
     }
@@ -331,9 +331,9 @@ class NewsService {
   async clearCache(ticker?: string): Promise<void> {
     try {
       const pattern = ticker ? `news:${ticker}:*` : 'news:*';
-      const keys = await redisClient.keys(pattern);
+      const keys = await redis.keys(pattern);
       if (keys.length > 0) {
-        await redisClient.del(...keys);
+        await redis.del(...keys);
         console.log(`[News Service] Cleared ${keys.length} cache entries`);
       }
     } catch (error: any) {
