@@ -1,116 +1,15 @@
 /**
  * Logo API Routes
+ * Note: Logo metadata is served via /api/logo-and-market-cap
+ * This route only handles image proxying and refresh operations
  */
 
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import { logoService } from '../services/logoService';
-import { marketCapService } from '../services/marketCapService';
 
 const router = Router();
 const POLYGON_API_KEY = process.env.POLYGON_API_KEY || '';
-
-/**
- * GET /api/logos/:ticker
- * Get logo for a single ticker
- */
-router.get('/:ticker', async (req: Request, res: Response) => {
-  try {
-    const { ticker } = req.params;
-    
-    if (!ticker) {
-      return res.status(400).json({ error: 'Ticker is required' });
-    }
-
-    // Check if ticker has market cap (validates ticker exists and has data)
-    const marketCap = await marketCapService.getMarketCap(ticker);
-    if (!marketCap) {
-      return res.status(404).json({ error: `Ticker ${ticker} not found or has no market cap data` });
-    }
-
-    const logo = await logoService.getLogo(ticker);
-    
-    if (!logo) {
-      return res.status(404).json({ error: `Logo not found for ${ticker}` });
-    }
-
-    // Get base URL for proxy endpoints
-    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-    
-    // Return proxy URLs instead of direct Polygon URLs
-    const formattedLogo = {
-      ticker: logo.ticker,
-      exchange: logo.exchange || '',
-      name: logo.companyName,
-      files: {
-        logo_light: logo.logoUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=logo` : undefined,
-        mark_light: logo.iconUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=icon` : undefined,
-        logo_dark: logo.logoUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=logo` : undefined,
-        mark_dark: logo.iconUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=icon` : undefined,
-      },
-      updated: Date.now(),
-    };
-
-    res.json(formattedLogo);
-  } catch (error: any) {
-    console.error('[Logos API] Error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-/**
- * GET /api/logos
- * Get logos for multiple tickers (comma-separated)
- * Example: /api/logos?tickers=AAPL,MSFT,GOOGL
- */
-router.get('/', async (req: Request, res: Response) => {
-  try {
-    const { tickers } = req.query;
-    
-    if (!tickers || typeof tickers !== 'string') {
-      return res.status(400).json({ error: 'Tickers parameter is required' });
-    }
-
-    const tickerList = tickers.split(',').map(t => t.trim()).filter(t => t.length > 0);
-    
-    if (tickerList.length === 0) {
-      return res.json([]);
-    }
-
-    // Filter out tickers without market cap (invalid tickers, ADRs without data, etc.)
-    const marketCaps = await marketCapService.getMarketCaps(tickerList);
-    const validTickers = marketCaps.map(mc => mc.ticker);
-    
-    if (validTickers.length === 0) {
-      return res.json([]);
-    }
-
-    const logos = await logoService.getLogos(validTickers);
-    
-    // Get base URL for proxy endpoints
-    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-    
-    // Transform to match CompanyLogo interface expected by earnings-web
-    // Use our proxy endpoint instead of direct Polygon URLs
-    const formattedLogos = logos.map(logo => ({
-      ticker: logo.ticker,
-      exchange: logo.exchange || '',
-      name: logo.companyName,
-      files: {
-        logo_light: logo.logoUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=logo` : undefined,
-        mark_light: logo.iconUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=icon` : undefined,
-        logo_dark: logo.logoUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=logo` : undefined,
-        mark_dark: logo.iconUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=icon` : undefined,
-      },
-      updated: Date.now(),
-    }));
-    
-    res.json(formattedLogos);
-  } catch (error: any) {
-    console.error('[Logos API] Error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 /**
  * GET /api/logos/:ticker/image

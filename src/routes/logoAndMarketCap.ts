@@ -46,16 +46,20 @@ router.get('/', async (req: Request, res: Response) => {
     // Step 2: Get logos only for valid tickers
     const logos = await logoService.getLogos(validTickers);
     
+    // Get base URL for proxy endpoints
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    
     // Transform to match CompanyLogo interface expected by earnings-web
+    // Use our proxy endpoint instead of direct Polygon URLs
     const formattedLogos = logos.map(logo => ({
       ticker: logo.ticker,
       exchange: logo.exchange || '',
       name: logo.companyName,
       files: {
-        logo_light: logo.logoUrl || undefined,
-        mark_light: logo.iconUrl || undefined,
-        logo_dark: logo.logoUrl || undefined,
-        mark_dark: logo.iconUrl || undefined,
+        logo_light: logo.logoUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=logo` : undefined,
+        mark_light: logo.iconUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=icon` : undefined,
+        logo_dark: logo.logoUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=logo` : undefined,
+        mark_dark: logo.iconUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=icon` : undefined,
       },
       updated: Date.now(),
     }));
