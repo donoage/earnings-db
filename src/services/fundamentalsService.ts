@@ -452,6 +452,40 @@ class FundamentalsService {
   }
 
   /**
+   * Clear cache and database entry for a ticker
+   */
+  async clearCache(ticker: string): Promise<{ success: boolean; message: string }> {
+    const tickerUpper = ticker.toUpperCase();
+    const cacheKey = `fundamentals:${tickerUpper}`;
+
+    try {
+      // Delete from Redis cache
+      const { getCached, deleteCached } = await import('../utils/redis');
+      await deleteCached(cacheKey);
+      console.log(`[Fundamentals Service] Cleared Redis cache for ${tickerUpper}`);
+
+      // Delete from PostgreSQL
+      await prisma.fundamental.delete({
+        where: { ticker: tickerUpper },
+      }).catch(() => {
+        console.log(`[Fundamentals Service] No database entry for ${tickerUpper}`);
+      });
+      console.log(`[Fundamentals Service] Cleared database entry for ${tickerUpper}`);
+
+      return {
+        success: true,
+        message: `Cache and database entry cleared for ${tickerUpper}`,
+      };
+    } catch (error: any) {
+      console.error(`[Fundamentals Service] Error clearing cache for ${ticker}:`, error.message);
+      return {
+        success: false,
+        message: `Error clearing cache: ${error.message}`,
+      };
+    }
+  }
+
+  /**
    * Convert database record to FundamentalsData
    */
   private dbToFundamentalsData(db: any): FundamentalsData {

@@ -47,5 +47,26 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * DELETE /api/fundamentals/cache/:ticker
+ * Clear cache and database entry for a ticker to force fresh fetch
+ * Example: DELETE /api/fundamentals/cache/TMUS
+ */
+router.delete('/cache/:ticker', async (req: Request, res: Response) => {
+  try {
+    const { ticker } = req.params;
+    
+    if (!ticker) {
+      return res.status(400).json({ error: 'Missing ticker parameter' });
+    }
+    
+    const result = await fundamentalsService.clearCache(ticker.toUpperCase());
+    return res.json(result);
+  } catch (error: any) {
+    console.error('[Fundamentals API] Error clearing cache:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
 
