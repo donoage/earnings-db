@@ -27,9 +27,12 @@ export class LogoService {
     const tickerUpper = ticker.toUpperCase();
     const cacheKey = `logo:${tickerUpper}`;
 
+    console.log(`[Logo Service] Getting logo for ${tickerUpper}`);
+
     // 1. Check Redis cache
     const cached = await getCached<LogoData>(cacheKey);
     if (cached) {
+      console.log(`[Logo Service] ✅ Redis cache hit for ${tickerUpper}`);
       return cached;
     }
 
@@ -39,6 +42,7 @@ export class LogoService {
     });
 
     if (dbLogo) {
+      console.log(`[Logo Service] ✅ DB cache hit for ${tickerUpper}`);
       const logoData: LogoData = {
         ticker: dbLogo.ticker,
         iconUrl: dbLogo.iconUrl,
@@ -47,13 +51,19 @@ export class LogoService {
         exchange: dbLogo.exchange,
       };
       
+      console.log(`[Logo Service] DB logo data:`, {
+        ticker: logoData.ticker,
+        iconUrl: logoData.iconUrl,
+        logoUrl: logoData.logoUrl,
+      });
+      
       // Cache in Redis
       await setCached(cacheKey, logoData, CACHE_TTL.LOGO);
       return logoData;
     }
 
     // 3. Fetch from Polygon API
-    console.log(`[Logo Service] Fetching from Polygon for ${tickerUpper}`);
+    console.log(`[Logo Service] 🌐 Fetching from Polygon for ${tickerUpper}`);
     try {
       const response = await axios.get(
         `${POLYGON_BASE_URL}/v3/reference/tickers/${tickerUpper}`,
@@ -71,6 +81,12 @@ export class LogoService {
         // Store URLs WITHOUT API key - we'll proxy them through our backend
         const iconUrl = branding.icon_url || branding.logo_url || null;
         const logoUrl = branding.logo_url || null;
+
+        console.log(`[Logo Service] Polygon returned URLs:`, {
+          ticker: tickerUpper,
+          iconUrl,
+          logoUrl,
+        });
 
         const logoData: LogoData = {
           ticker: tickerUpper,
@@ -99,15 +115,18 @@ export class LogoService {
           },
         });
 
+        console.log(`[Logo Service] ✅ Stored logo for ${tickerUpper} in DB`);
+
         // Cache in Redis
         await setCached(cacheKey, logoData, CACHE_TTL.LOGO);
 
         return logoData;
       }
     } catch (error: any) {
-      console.error(`[Logo Service] Error fetching logo for ${tickerUpper}:`, error.message);
+      console.error(`[Logo Service] ❌ Error fetching logo for ${tickerUpper}:`, error.message);
     }
 
+    console.log(`[Logo Service] ❌ No logo found for ${tickerUpper}`);
     return null;
   }
 
