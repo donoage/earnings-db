@@ -272,11 +272,19 @@ class EarningsService {
     const tickersWithMarketCap = new Set(marketCaps.map(mc => mc.ticker));
     
     // Filter earnings to only include tickers with market cap data
+    const filteredOut: string[] = [];
     const filtered = earnings.filter(earning => {
-      return tickersWithMarketCap.has(earning.ticker.toUpperCase());
+      const hasMarketCap = tickersWithMarketCap.has(earning.ticker.toUpperCase());
+      if (!hasMarketCap) {
+        filteredOut.push(earning.ticker);
+      }
+      return hasMarketCap;
     });
     
-    console.log(`[Earnings Service] Market cap filter: ${earnings.length} → ${filtered.length} earnings (removed ${earnings.length - filtered.length})`);
+    if (filteredOut.length > 0) {
+      console.log(`[Earnings Service] Filtered out ${filteredOut.length} tickers without market cap: ${filteredOut.join(', ')}`);
+    }
+    console.log(`[Earnings Service] Market cap filter: ${earnings.length} → ${filtered.length} earnings`);
     return filtered;
   }
 
