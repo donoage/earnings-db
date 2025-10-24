@@ -3,10 +3,12 @@
  */
 
 import { Router, Request, Response } from 'express';
+import axios from 'axios';
 import { logoService } from '../services/logoService';
 import { marketCapService } from '../services/marketCapService';
 
 const router = Router();
+const POLYGON_API_KEY = process.env.POLYGON_API_KEY || '';
 
 /**
  * GET /api/logos/:ticker
@@ -32,7 +34,24 @@ router.get('/:ticker', async (req: Request, res: Response) => {
       return res.status(404).json({ error: `Logo not found for ${ticker}` });
     }
 
-    res.json(logo);
+    // Get base URL for proxy endpoints
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    
+    // Return proxy URLs instead of direct Polygon URLs
+    const formattedLogo = {
+      ticker: logo.ticker,
+      exchange: logo.exchange || '',
+      name: logo.companyName,
+      files: {
+        logo_light: logo.logoUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=logo` : undefined,
+        mark_light: logo.iconUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=icon` : undefined,
+        logo_dark: logo.logoUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=logo` : undefined,
+        mark_dark: logo.iconUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=icon` : undefined,
+      },
+      updated: Date.now(),
+    };
+
+    res.json(formattedLogo);
   } catch (error: any) {
     console.error('[Logos API] Error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -68,16 +87,20 @@ router.get('/', async (req: Request, res: Response) => {
 
     const logos = await logoService.getLogos(validTickers);
     
+    // Get base URL for proxy endpoints
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    
     // Transform to match CompanyLogo interface expected by earnings-web
+    // Use our proxy endpoint instead of direct Polygon URLs
     const formattedLogos = logos.map(logo => ({
       ticker: logo.ticker,
       exchange: logo.exchange || '',
       name: logo.companyName,
       files: {
-        logo_light: logo.logoUrl || undefined,
-        mark_light: logo.iconUrl || undefined,
-        logo_dark: logo.logoUrl || undefined,
-        mark_dark: logo.iconUrl || undefined,
+        logo_light: logo.logoUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=logo` : undefined,
+        mark_light: logo.iconUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=icon` : undefined,
+        logo_dark: logo.logoUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=logo` : undefined,
+        mark_dark: logo.iconUrl ? `${baseUrl}/api/logos/${logo.ticker}/image?type=icon` : undefined,
       },
       updated: Date.now(),
     }));
@@ -86,6 +109,52 @@ router.get('/', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('[Logos API] Error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/logos/:ticker/image
+ * Proxy logo image from Polygon (prevents exposing API key to frontend)
+ */
+router.get('/:ticker/image', async (req: Request, res: Response) => {
+  try {
+    const { ticker } = req.params;
+    const { type = 'icon' } = req.query; // 'icon' or 'logo'
+    
+    if (!ticker) {
+      return res.status(400).json({ error: 'Ticker is required' });
+    }
+
+    // Get logo data from our service
+    const logoData = await logoService.getLogo(ticker);
+    
+    if (!logoData) {
+      return res.status(404).json({ error: `Logo not found for ${ticker}` });
+    }
+
+    // Choose which URL to use
+    const imageUrl = type === 'logo' ? logoData.logoUrl : logoData.iconUrl;
+    
+    if (!imageUrl) {
+      return res.status(404).json({ error: `Image not available for ${ticker}` });
+    }
+
+    // Fetch image from Polygon with API key (server-side only)
+    const imageResponse = await axios.get(`${imageUrl}?apiKey=${POLYGON_API_KEY}`, {
+      responseType: 'arraybuffer',
+      timeout: 5000,
+    });
+
+    // Set appropriate headers
+    const contentType = imageResponse.headers['content-type'] || 'image/png';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=2592000'); // Cache for 30 days
+    
+    // Send image data
+    res.send(imageResponse.data);
+  } catch (error: any) {
+    console.error('[Logos API] Error proxying image:', error.message);
+    res.status(500).json({ error: 'Failed to fetch image' });
   }
 });
 

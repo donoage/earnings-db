@@ -68,12 +68,9 @@ export class LogoService {
         const branding = result.branding || {};
         
         // Prefer icon_url over logo_url
-        let iconUrl = branding.icon_url || branding.logo_url || null;
-        let logoUrl = branding.logo_url || null;
-        
-        // Append API key for authentication
-        if (iconUrl) iconUrl = `${iconUrl}?apiKey=${POLYGON_API_KEY}`;
-        if (logoUrl) logoUrl = `${logoUrl}?apiKey=${POLYGON_API_KEY}`;
+        // Store URLs WITHOUT API key - we'll proxy them through our backend
+        const iconUrl = branding.icon_url || branding.logo_url || null;
+        const logoUrl = branding.logo_url || null;
 
         const logoData: LogoData = {
           ticker: tickerUpper,
