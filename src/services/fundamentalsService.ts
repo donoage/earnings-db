@@ -102,9 +102,30 @@ class FundamentalsService {
    * Check if fundamentals data is incomplete (missing critical fields)
    */
   private isIncompleteData(data: FundamentalsData): boolean {
+    const missingFields: string[] = [];
+    
     // Critical fields that should be present for complete data
-    // If exchange, sector, or industry are missing, data is likely incomplete
-    return !data.exchange || !data.sector || !data.industry;
+    // Basic company info
+    if (!data.exchange) missingFields.push('exchange');
+    if (!data.sector) missingFields.push('sector');
+    if (!data.industry) missingFields.push('industry');
+    
+    // Market data - these should always be available for public companies
+    if (!data.marketCap) missingFields.push('marketCap');
+    if (!data.currentPrice) missingFields.push('currentPrice');
+    
+    // Balance sheet fundamentals - at least total assets should exist
+    if (!data.totalAssets) missingFields.push('totalAssets');
+    
+    // Income statement - revenue should always be available
+    if (!data.revenue) missingFields.push('revenue');
+    
+    if (missingFields.length > 0) {
+      console.log(`[Fundamentals Service] Missing critical fields for ${data.ticker}: ${missingFields.join(', ')}`);
+      return true;
+    }
+    
+    return false;
   }
 
   /**
