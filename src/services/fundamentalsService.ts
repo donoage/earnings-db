@@ -275,7 +275,8 @@ class FundamentalsService {
           params: {
             ticker: ticker,
             limit: 1,
-            sort: 'date.desc',
+            // Note: The ratios endpoint doesn't support sorting by date
+            // It returns the most recent data by default
             apiKey: POLYGON_API_KEY,
           },
           timeout: 10000,
