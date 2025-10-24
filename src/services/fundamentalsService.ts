@@ -688,8 +688,8 @@ class FundamentalsService {
       
       // Additional metrics
       beta: db.beta ? Number(db.beta) : undefined,
-      fiftyTwoWeekHigh: db.fiftyTwoWeekHigh ? Number(db.fiftyTwoWeekHigh) : undefined,
-      fiftyTwoWeekLow: db.fiftyTwoWeekLow ? Number(db.fiftyTwoWeekLow) : undefined,
+      fiftyTwoWeekHigh: db.week52High ? Number(db.week52High) : undefined,
+      fiftyTwoWeekLow: db.week52Low ? Number(db.week52Low) : undefined,
       
       updatedAt: db.updatedAt,
     };
