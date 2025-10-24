@@ -80,6 +80,15 @@ interface FundamentalsData {
 
 class FundamentalsService {
   /**
+   * Check if fundamentals data is incomplete (missing critical fields)
+   */
+  private isIncompleteData(data: FundamentalsData): boolean {
+    // Critical fields that should be present for complete data
+    // If exchange, sector, or industry are missing, data is likely incomplete
+    return !data.exchange || !data.sector || !data.industry;
+  }
+
+  /**
    * Get fundamentals for a single ticker
    */
   async getFundamentals(ticker: string): Promise<FundamentalsData | null> {
@@ -89,6 +98,12 @@ class FundamentalsService {
     // 1. Check Redis cache
     const cached = await getCached<FundamentalsData>(cacheKey);
     if (cached) {
+      // Check if cached data is incomplete
+      if (this.isIncompleteData(cached)) {
+        console.log(`[Fundamentals Service] Incomplete cached data for ${tickerUpper}, refetching...`);
+        await this.clearCache(tickerUpper);
+        return await this.fetchFromPolygon(tickerUpper);
+      }
       console.log(`[Fundamentals Service] Cache hit for ${tickerUpper}`);
       return cached;
     }
@@ -101,9 +116,17 @@ class FundamentalsService {
     if (dbFundamentals) {
       const age = Date.now() - dbFundamentals.updatedAt.getTime();
       
-      // If data is fresh enough, use it
+      // If data is fresh enough, check if it's complete
       if (age < UPDATE_THRESHOLD.FUNDAMENTALS) {
         const fundamentalsData = this.dbToFundamentalsData(dbFundamentals);
+        
+        // Check if data is incomplete
+        if (this.isIncompleteData(fundamentalsData)) {
+          console.log(`[Fundamentals Service] Incomplete DB data for ${tickerUpper}, refetching...`);
+          await this.clearCache(tickerUpper);
+          return await this.fetchFromPolygon(tickerUpper);
+        }
+        
         await setCached(cacheKey, fundamentalsData, CACHE_TTL.FUNDAMENTALS);
         console.log(`[Fundamentals Service] DB hit for ${tickerUpper} (age: ${Math.round(age / 1000 / 60)} minutes)`);
         return fundamentalsData;
