@@ -40,10 +40,10 @@ model Earning {
   epsSurprise             Decimal?  @map("eps_surprise") @db.Decimal(10, 4)
   epsSurprisePercent      Decimal?  @map("eps_surprise_percent") @db.Decimal(10, 4)
   revenueType             String?   @map("revenue_type") @db.VarChar(10)
-  revenueEstimate         BigInt?   @map("revenue_estimate")
-  revenueActual           BigInt?   @map("revenue_actual")
-  revenuePrior            BigInt?   @map("revenue_prior")
-  revenueSurprise         BigInt?   @map("revenue_surprise")
+  revenueEstimate         Decimal?  @map("revenue_estimate") @db.Decimal(20, 2)
+  revenueActual           Decimal?  @map("revenue_actual") @db.Decimal(20, 2)
+  revenuePrior            Decimal?  @map("revenue_prior") @db.Decimal(20, 2)
+  revenueSurprise         Decimal?  @map("revenue_surprise") @db.Decimal(20, 2)
   revenueSurprisePercent  Decimal?  @map("revenue_surprise_percent") @db.Decimal(10, 4)
   importance              Int       @default(0) @db.SmallInt
   notes                   String?   @db.Text
@@ -65,8 +65,8 @@ model Fundamental {
   website             String?   @db.VarChar(255)
   description         String?   @db.Text
   logoUrl             String?   @map("logo_url") @db.Text
-  marketCap           BigInt?   @map("market_cap")
-  sharesOutstanding   BigInt?   @map("shares_outstanding")
+  marketCap           Decimal?  @map("market_cap") @db.Decimal(20, 2)
+  sharesOutstanding   Decimal?  @map("shares_outstanding") @db.Decimal(20, 2)
   currentPrice        Decimal?  @map("current_price") @db.Decimal(12, 4)
   currency            String?   @db.VarChar(5)
   priceToEarnings     Decimal?  @map("price_to_earnings") @db.Decimal(10, 4)
@@ -78,7 +78,7 @@ model Fundamental {
   returnOnEquity      Decimal?  @map("return_on_equity") @db.Decimal(10, 4)
   debtToEquity        Decimal?  @map("debt_to_equity") @db.Decimal(10, 4)
   currentRatio        Decimal?  @map("current_ratio") @db.Decimal(10, 4)
-  freeCashflow        BigInt?   @map("free_cashflow")
+  freeCashflow        Decimal?  @map("free_cashflow") @db.Decimal(20, 2)
   dividendYield       Decimal?  @map("dividend_yield") @db.Decimal(10, 4)
   dividendRate        Decimal?  @map("dividend_rate") @db.Decimal(10, 4)
   employees           Int?

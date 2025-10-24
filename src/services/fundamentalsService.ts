@@ -199,13 +199,7 @@ class FundamentalsService {
       }
 
       // Store in PostgreSQL
-      // Round BigInt fields to integers (market cap and shares don't need decimals)
-      // Decimal fields (ratios, percentages) are already handled by Prisma schema
-      const marketCapInt = fundamentalsData.marketCap ? BigInt(Math.round(fundamentalsData.marketCap)) : null;
-      const sharesOutstandingInt = fundamentalsData.sharesOutstanding ? BigInt(Math.round(fundamentalsData.sharesOutstanding)) : null;
-      const enterpriseValueInt = fundamentalsData.enterpriseValue ? BigInt(Math.round(fundamentalsData.enterpriseValue)) : null;
-      const freeCashFlowInt = fundamentalsData.freeCashFlow ? BigInt(Math.round(fundamentalsData.freeCashFlow)) : null;
-      
+      // All numeric fields are now Decimal type in the schema
       const updateData = {
         companyName: fundamentalsData.name || '',
         exchange: fundamentalsData.exchange,
@@ -215,8 +209,8 @@ class FundamentalsService {
         description: fundamentalsData.description,
         currency: fundamentalsData.currency,
         employees: fundamentalsData.employees,
-        marketCap: marketCapInt,
-        sharesOutstanding: sharesOutstandingInt,
+        marketCap: fundamentalsData.marketCap,
+        sharesOutstanding: fundamentalsData.sharesOutstanding,
         currentPrice: fundamentalsData.currentPrice,
         
         // Valuation ratios (only fields that exist in schema)
@@ -238,7 +232,7 @@ class FundamentalsService {
         
         // Dividend & cash flow
         dividendYield: fundamentalsData.dividendYield,
-        freeCashflow: freeCashFlowInt,
+        freeCashflow: fundamentalsData.freeCashFlow,
         // Note: dividendRate not fetched from Polygon
         // Note: revenue, grossProfit, operatingIncome, netIncome, ebitda, earningsPerShare not in schema
         
@@ -539,7 +533,7 @@ class FundamentalsService {
       currency: db.currency,
       employees: db.employees,
       
-      // Market data - Convert BigInt to number for JSON serialization
+      // Market data - Convert Decimal to number for JSON serialization
       marketCap: db.marketCap ? Number(db.marketCap) : undefined,
       sharesOutstanding: db.sharesOutstanding ? Number(db.sharesOutstanding) : undefined,
       currentPrice: db.currentPrice ? Number(db.currentPrice) : undefined,
