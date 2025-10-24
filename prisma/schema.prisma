@@ -89,6 +89,8 @@ model Fundamental {
   grossMargin         Decimal?  @map("gross_margin") @db.Decimal(10, 4)
   returnOnAssets      Decimal?  @map("return_on_assets") @db.Decimal(10, 4)
   returnOnEquity      Decimal?  @map("return_on_equity") @db.Decimal(10, 4)
+  revenueGrowth       Decimal?  @map("revenue_growth") @db.Decimal(10, 4)
+  earningsGrowth      Decimal?  @map("earnings_growth") @db.Decimal(10, 4)
   
   // Liquidity ratios
   debtToEquity        Decimal?  @map("debt_to_equity") @db.Decimal(10, 4)

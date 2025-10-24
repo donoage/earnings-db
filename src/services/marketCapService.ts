@@ -203,7 +203,7 @@ class MarketCapService {
         apiCalls.push(aggregatesPromise);
       }
 
-      // 3. Income statement (only if needed)
+      // 3. Income statement (only if needed) - fetch 2 years for growth calculation
       let incomePromise: Promise<any> | null = null;
       if (needsIncomeStatement) {
         incomePromise = axios.get(
@@ -212,8 +212,8 @@ class MarketCapService {
             params: {
               apiKey: POLYGON_API_KEY,
               'tickers': ticker,
-              timeframe: 'trailing_twelve_months',
-              limit: 1,
+              timeframe: 'annual',
+              limit: 2,
               sort: 'period_end.desc'
             },
             timeout: 10000,
@@ -343,18 +343,34 @@ class MarketCapService {
       let grossProfit: number | undefined = existingData?.grossProfit ? Number(existingData.grossProfit) : undefined;
       let ebitda: number | undefined = existingData?.ebitda ? Number(existingData.ebitda) : undefined;
       let earningsPerShare: number | undefined = existingData?.earningsPerShare ? Number(existingData.earningsPerShare) : undefined;
+      let revenueGrowth: number | undefined = existingData?.revenueGrowth ? Number(existingData.revenueGrowth) : undefined;
+      let earningsGrowth: number | undefined = existingData?.earningsGrowth ? Number(existingData.earningsGrowth) : undefined;
 
       if (incomePromise) {
         const incomeResponse = await incomePromise;
         if (incomeResponse?.data?.status === 'OK' && incomeResponse.data.results?.length > 0) {
-          const income = incomeResponse.data.results[0];
+          const income = incomeResponse.data.results[0]; // Current year
           revenue = income.revenue;
           netIncome = income.consolidated_net_income_loss;
           operatingIncome = income.operating_income;
           grossProfit = income.gross_profit;
           ebitda = income.ebitda;
           earningsPerShare = income.diluted_earnings_per_share;
-          console.log(`[Market Cap Service] ✓ Income statement: revenue=${revenue}, netIncome=${netIncome}, EPS=${earningsPerShare}`);
+          
+          // Calculate growth if we have 2 years of data
+          if (incomeResponse.data.results.length >= 2) {
+            const previousIncome = incomeResponse.data.results[1]; // Previous year
+            
+            if (revenue && previousIncome.revenue && previousIncome.revenue !== 0) {
+              revenueGrowth = ((revenue - previousIncome.revenue) / previousIncome.revenue) * 100;
+            }
+            
+            if (netIncome && previousIncome.consolidated_net_income_loss && previousIncome.consolidated_net_income_loss !== 0) {
+              earningsGrowth = ((netIncome - previousIncome.consolidated_net_income_loss) / previousIncome.consolidated_net_income_loss) * 100;
+            }
+          }
+          
+          console.log(`[Market Cap Service] ✓ Income statement: revenue=${revenue}, netIncome=${netIncome}, EPS=${earningsPerShare}, revenueGrowth=${revenueGrowth?.toFixed(1)}%, earningsGrowth=${earningsGrowth?.toFixed(1)}%`);
         }
       }
 
@@ -550,6 +566,8 @@ class MarketCapService {
           profitMargin,
           operatingMargin,
           grossMargin,
+          revenueGrowth,
+          earningsGrowth,
           // Liquidity ratios
           debtToEquity,
           currentRatio,
@@ -608,6 +626,8 @@ class MarketCapService {
           profitMargin,
           operatingMargin,
           grossMargin,
+          revenueGrowth,
+          earningsGrowth,
           // Liquidity ratios
           debtToEquity,
           currentRatio,

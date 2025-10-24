@@ -52,6 +52,8 @@ interface FundamentalsData {
   profitMargin?: number;
   operatingMargin?: number;
   grossMargin?: number;
+  revenueGrowth?: number;
+  earningsGrowth?: number;
   
   // Liquidity ratios (from /ratios endpoint)
   currentRatio?: number;
@@ -650,6 +652,8 @@ class FundamentalsService {
       grossMargin: db.grossMargin ? Number(db.grossMargin) : undefined,
       returnOnAssets: db.returnOnAssets ? Number(db.returnOnAssets) : undefined,
       returnOnEquity: db.returnOnEquity ? Number(db.returnOnEquity) : undefined,
+      revenueGrowth: db.revenueGrowth ? Number(db.revenueGrowth) : undefined,
+      earningsGrowth: db.earningsGrowth ? Number(db.earningsGrowth) : undefined,
       
       // Liquidity ratios
       currentRatio: db.currentRatio ? Number(db.currentRatio) : undefined,
