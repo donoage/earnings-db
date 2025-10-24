@@ -39,6 +39,7 @@ interface FundamentalsData {
   priceToBook?: number;
   priceToSales?: number;
   priceToCashFlow?: number;
+  priceToOperatingCashFlow?: number;  // Same as priceToCashFlow
   priceToFreeCashFlow?: number;
   enterpriseValue?: number;
   evToSales?: number;
@@ -380,6 +381,7 @@ class FundamentalsService {
         priceToBook: result.price_to_book,
         priceToSales: result.price_to_sales,
         priceToCashFlow: result.price_to_cash_flow,
+        priceToOperatingCashFlow: result.price_to_cash_flow,  // Same value
         priceToFreeCashFlow: result.price_to_free_cash_flow,
         enterpriseValue: result.enterprise_value,
         evToSales: result.ev_to_sales,
@@ -609,6 +611,7 @@ class FundamentalsService {
       priceToBook: db.priceToBook ? Number(db.priceToBook) : undefined,
       priceToSales: db.priceToSales ? Number(db.priceToSales) : undefined,
       priceToCashFlow: db.priceToCashFlow ? Number(db.priceToCashFlow) : undefined,
+      priceToOperatingCashFlow: db.priceToCashFlow ? Number(db.priceToCashFlow) : undefined,  // Same value
       priceToFreeCashFlow: db.priceToFreeCashFlow ? Number(db.priceToFreeCashFlow) : undefined,
       enterpriseValue: db.enterpriseValue ? Number(db.enterpriseValue) : undefined,
       evToSales: db.evToSales ? Number(db.evToSales) : undefined,
