@@ -4,6 +4,7 @@
 
 import { Router, Request, Response } from 'express';
 import { logoService } from '../services/logoService';
+import { marketCapService } from '../services/marketCapService';
 
 const router = Router();
 
@@ -17,6 +18,12 @@ router.get('/:ticker', async (req: Request, res: Response) => {
     
     if (!ticker) {
       return res.status(400).json({ error: 'Ticker is required' });
+    }
+
+    // Check if ticker has market cap (validates ticker exists and has data)
+    const marketCap = await marketCapService.getMarketCap(ticker);
+    if (!marketCap) {
+      return res.status(404).json({ error: `Ticker ${ticker} not found or has no market cap data` });
     }
 
     const logo = await logoService.getLogo(ticker);
@@ -51,7 +58,15 @@ router.get('/', async (req: Request, res: Response) => {
       return res.json([]);
     }
 
-    const logos = await logoService.getLogos(tickerList);
+    // Filter out tickers without market cap (invalid tickers, ADRs without data, etc.)
+    const marketCaps = await marketCapService.getMarketCaps(tickerList);
+    const validTickers = marketCaps.map(mc => mc.ticker);
+    
+    if (validTickers.length === 0) {
+      return res.json([]);
+    }
+
+    const logos = await logoService.getLogos(validTickers);
     
     // Transform to match CompanyLogo interface expected by earnings-web
     const formattedLogos = logos.map(logo => ({
