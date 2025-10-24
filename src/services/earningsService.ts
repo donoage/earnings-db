@@ -417,12 +417,74 @@ class EarningsService {
       const totalDuration = Date.now() - startTime;
       
       console.log(`[EarningsService:${serviceId}] ✅ Extracted ${primary.length} primary earnings (total ${totalDuration}ms)`);
+      
+      // Pre-fetch 52-week data for primary tickers in background (non-blocking)
+      this.prefetch52WeekData(primary);
+      
       return primary;
     } catch (error: any) {
       console.error(`[EarningsService:${serviceId}] ❌ ERROR in getPrimaryEarnings`);
       console.error(`[EarningsService:${serviceId}] Error:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Pre-fetch 52-week high/low data for tickers (non-blocking)
+   * Only fetches for tickers that don't have recent data
+   */
+  private prefetch52WeekData(earnings: EarningsEvent[]): void {
+    (async () => {
+      try {
+        const tickers = [...new Set(earnings.map(e => e.ticker))];
+        console.log(`[Earnings Service] Pre-fetching 52-week data for ${tickers.length} tickers in background`);
+        
+        // Check which tickers need 52-week data (don't have it or it's stale)
+        const TWELVE_HOURS = 12 * 60 * 60 * 1000;
+        const now = Date.now();
+        
+        const fundamentals = await prisma.fundamental.findMany({
+          where: { ticker: { in: tickers } },
+          select: { 
+            ticker: true, 
+            week52High: true, 
+            week52Low: true, 
+            updatedAt: true 
+          }
+        });
+        
+        const fundamentalsMap = new Map(fundamentals.map(f => [f.ticker, f]));
+        const tickersNeedingData: string[] = [];
+        
+        tickers.forEach(ticker => {
+          const fund = fundamentalsMap.get(ticker);
+          if (!fund || !fund.week52High || !fund.week52Low) {
+            // No 52-week data at all
+            tickersNeedingData.push(ticker);
+          } else {
+            // Check if data is stale (older than 12 hours)
+            const age = now - fund.updatedAt.getTime();
+            if (age > TWELVE_HOURS) {
+              tickersNeedingData.push(ticker);
+            }
+          }
+        });
+        
+        if (tickersNeedingData.length === 0) {
+          console.log(`[Earnings Service] All tickers have fresh 52-week data`);
+          return;
+        }
+        
+        console.log(`[Earnings Service] Fetching 52-week data for ${tickersNeedingData.length} tickers: ${tickersNeedingData.join(', ')}`);
+        
+        // Fetch market cap data (which includes 52-week data)
+        await marketCapService.getMarketCaps(tickersNeedingData);
+        
+        console.log(`[Earnings Service] ✅ Completed pre-fetching 52-week data`);
+      } catch (error: any) {
+        console.error(`[Earnings Service] Error pre-fetching 52-week data:`, error.message);
+      }
+    })();
   }
 
   /**
