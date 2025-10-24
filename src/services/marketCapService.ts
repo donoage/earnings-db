@@ -163,12 +163,16 @@ class MarketCapService {
 
       return marketCapData;
     } catch (error: any) {
-      console.error(`[Market Cap Service] Error fetching ${ticker}:`, error.message);
-      console.error(`[Market Cap Service] Full error:`, error);
-      if (error.response) {
-        console.error(`[Market Cap Service] Response status:`, error.response.status);
-        console.error(`[Market Cap Service] Response data:`, error.response.data);
+      // Handle 404s silently (ticker doesn't exist or is invalid)
+      if (error.response?.status === 404) {
+        // Cache null result to avoid repeated lookups for invalid tickers
+        const cacheKey = `marketcap:${ticker.toUpperCase()}`;
+        await setCached(cacheKey, null, CACHE_TTL.MARKET_CAP);
+        return null;
       }
+      
+      // Log other errors (rate limits, network issues, etc.)
+      console.error(`[Market Cap Service] Error fetching ${ticker} (${error.response?.status || 'unknown'}):`, error.message);
       return null;
     }
   }
