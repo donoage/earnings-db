@@ -346,10 +346,28 @@ class FundamentalsService {
       }
 
       const result = response.data.results;
+      
+      // Use type for sector (e.g., "CS" = Common Stock) and sic_description for industry
+      // If type is available, map it to readable sector names
+      const sectorMap: Record<string, string> = {
+        'CS': 'Equity',
+        'ADRC': 'ADR',
+        'ADRW': 'ADR Warrant',
+        'ADRR': 'ADR Right',
+        'UNIT': 'Unit',
+        'RIGHT': 'Right',
+        'PFD': 'Preferred Stock',
+        'FUND': 'Fund',
+        'SP': 'Structured Product',
+        'WARRANT': 'Warrant',
+      };
+      
+      const sector = result.type ? (sectorMap[result.type] || result.sic_description) : result.sic_description;
+      
       return {
         name: result.name,
         exchange: result.primary_exchange,
-        sector: result.sic_description,
+        sector: sector,
         industry: result.sic_description,
         marketCap: result.market_cap,
         sharesOutstanding: result.share_class_shares_outstanding,
