@@ -102,45 +102,126 @@ class MarketCapService {
 
   /**
    * Get market caps for multiple tickers
+   * Optimized with batch DB query and rate-limited Polygon API calls
    */
   async getMarketCaps(tickers: string[]): Promise<MarketCapData[]> {
     const uniqueTickers = [...new Set(tickers.map(t => t.toUpperCase()))];
+    const startTime = Date.now();
     console.log(`[Market Cap Service] Fetching market caps for ${uniqueTickers.length} tickers`);
     
-    // Try to get from cache first (batch operation)
+    // Step 1: Try to get from Redis cache first (batch operation)
     const cacheKeys = uniqueTickers.map(t => `marketcap:${t}`);
     const cachedResults = await getCachedMany<MarketCapData>(cacheKeys);
     
-    const results: (MarketCapData | null)[] = [];
-    const tickersToFetch: string[] = [];
+    const results: Map<string, MarketCapData> = new Map();
+    const tickersToFetchFromDB: string[] = [];
     
     // Separate cached vs needs-fetch
     for (let i = 0; i < uniqueTickers.length; i++) {
-      if (cachedResults[i]) {
-        results[i] = cachedResults[i];
+      const cachedData = cachedResults[i];
+      if (cachedData) {
+        results.set(uniqueTickers[i], cachedData);
       } else {
-        results[i] = null;
-        tickersToFetch.push(uniqueTickers[i]);
+        tickersToFetchFromDB.push(uniqueTickers[i]);
       }
     }
     
-    // Fetch missing ones
-    if (tickersToFetch.length > 0) {
-      console.log(`[Market Cap Service] Cache miss for ${tickersToFetch.length} tickers, fetching...`);
-      const fetchedResults = await Promise.all(
-        tickersToFetch.map(ticker => this.getMarketCap(ticker))
-      );
+    console.log(`[Market Cap Service] Redis: ${results.size} hits, ${tickersToFetchFromDB.length} misses`);
+    
+    // Step 2: Batch fetch from PostgreSQL for cache misses
+    if (tickersToFetchFromDB.length > 0) {
+      const dbData = await prisma.fundamental.findMany({
+        where: { ticker: { in: tickersToFetchFromDB } },
+      });
       
-      // Merge results
-      let fetchIndex = 0;
-      for (let i = 0; i < results.length; i++) {
-        if (results[i] === null) {
-          results[i] = fetchedResults[fetchIndex++];
+      const tickersToFetchFromPolygon: string[] = [];
+      const dbDataMap = new Map(dbData.map(d => [d.ticker, d]));
+      
+      for (const ticker of tickersToFetchFromDB) {
+        const data = dbDataMap.get(ticker);
+        
+        if (data && data.marketCap) {
+          const age = Date.now() - data.updatedAt.getTime();
+          
+          // If data is fresh enough, use it
+          if (age < UPDATE_THRESHOLD.FUNDAMENTALS) {
+            const marketCapData: MarketCapData = {
+              ticker: data.ticker,
+              marketCap: Number(data.marketCap),
+              week52High: data.week52High ? Number(data.week52High) : undefined,
+              week52Low: data.week52Low ? Number(data.week52Low) : undefined,
+              currentPrice: data.currentPrice ? Number(data.currentPrice) : undefined,
+              sharesOutstanding: data.sharesOutstanding ? Number(data.sharesOutstanding) : undefined,
+              sector: data.sector || undefined,
+              industry: data.industry || undefined,
+              description: data.description || undefined,
+              website: data.website || undefined,
+              exchange: data.exchange || undefined,
+              companyName: data.companyName,
+              updatedAt: data.updatedAt,
+            };
+            results.set(ticker, marketCapData);
+            // Cache in Redis (non-blocking)
+            setCached(`marketcap:${ticker}`, marketCapData, CACHE_TTL.FUNDAMENTALS).catch(err => {
+              console.error(`[Market Cap Service] Error caching ${ticker}:`, err.message);
+            });
+          } else {
+            // Data is stale, needs refresh
+            tickersToFetchFromPolygon.push(ticker);
+          }
+        } else {
+          // No data in DB, needs fetch
+          tickersToFetchFromPolygon.push(ticker);
+        }
+      }
+      
+      console.log(`[Market Cap Service] DB: ${dbData.length} found, ${tickersToFetchFromPolygon.length} need Polygon fetch`);
+      
+      // Step 3: Fetch from Polygon in batches (rate limiting)
+      if (tickersToFetchFromPolygon.length > 0) {
+        const BATCH_SIZE = 10; // Process 10 tickers at a time to avoid rate limits
+        const batches: string[][] = [];
+        
+        for (let i = 0; i < tickersToFetchFromPolygon.length; i += BATCH_SIZE) {
+          batches.push(tickersToFetchFromPolygon.slice(i, i + BATCH_SIZE));
+        }
+        
+        console.log(`[Market Cap Service] Fetching ${tickersToFetchFromPolygon.length} tickers from Polygon in ${batches.length} batches`);
+        
+        for (let i = 0; i < batches.length; i++) {
+          const batch = batches[i];
+          const batchStartTime = Date.now();
+          
+          const batchResults = await Promise.all(
+            batch.map(ticker => {
+              const existingData = dbDataMap.get(ticker);
+              return this.fetchFromPolygon(ticker, existingData);
+            })
+          );
+          
+          // Add successful results
+          batchResults.forEach((data, idx) => {
+            if (data) {
+              results.set(batch[idx], data);
+            }
+          });
+          
+          const batchDuration = Date.now() - batchStartTime;
+          console.log(`[Market Cap Service] Batch ${i + 1}/${batches.length} completed in ${batchDuration}ms (${batch.length} tickers)`);
+          
+          // Rate limiting: wait 200ms between batches (allows 50 batches/sec = 500 tickers/sec)
+          if (i < batches.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
         }
       }
     }
     
-    return results.filter((mc): mc is MarketCapData => mc !== null);
+    const totalDuration = Date.now() - startTime;
+    console.log(`[Market Cap Service] ✅ Completed ${uniqueTickers.length} tickers in ${totalDuration}ms (${results.size} successful)`);
+    
+    // Return results in original order
+    return uniqueTickers.map(t => results.get(t)).filter((mc): mc is MarketCapData => mc !== null);
   }
 
   /**
