@@ -14,6 +14,7 @@ const POLYGON_API_KEY = process.env.POLYGON_API_KEY || '';
 /**
  * GET /api/logos/:ticker/image
  * Proxy logo image from Polygon (prevents exposing API key to frontend)
+ * Note: Individual requests are intentional - allows browser caching and lazy loading
  */
 router.get('/:ticker/image', async (req: Request, res: Response) => {
   const requestId = Math.random().toString(36).substring(7);
