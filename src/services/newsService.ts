@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { PrismaClient, News } from '@prisma/client';
-import { redisClient } from '../config/redis';
+import { redisClient } from '../utils/redis';
 
 const prisma = new PrismaClient();
 const POLYGON_API_KEY = process.env.POLYGON_API_KEY;
