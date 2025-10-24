@@ -23,6 +23,10 @@ interface FundamentalsData {
   exchange?: string;
   sector?: string;
   industry?: string;
+  website?: string;
+  description?: string;
+  currency?: string;
+  employees?: number;
   
   // Market data
   marketCap?: number;
@@ -184,15 +188,19 @@ class FundamentalsService {
         exchange: fundamentalsData.exchange,
         sector: fundamentalsData.sector,
         industry: fundamentalsData.industry,
+        website: fundamentalsData.website,
+        description: fundamentalsData.description,
+        currency: fundamentalsData.currency,
+        employees: fundamentalsData.employees,
         marketCap: marketCapInt,
         sharesOutstanding: sharesOutstandingInt,
         currentPrice: fundamentalsData.currentPrice,
         
-        // Valuation ratios
+        // Valuation ratios (only fields that exist in schema)
         priceToEarnings: fundamentalsData.priceToEarnings,
         priceToBook: fundamentalsData.priceToBook,
         priceToSales: fundamentalsData.priceToSales,
-        enterpriseValue: enterpriseValueInt,
+        // Note: enterpriseValue, evToSales, evToEbitda, priceToCashFlow, priceToFreeCashFlow not in schema
         
         // Profitability ratios
         profitMargin: fundamentalsData.profitMargin,
@@ -203,10 +211,13 @@ class FundamentalsService {
         // Liquidity & leverage ratios
         debtToEquity: fundamentalsData.debtToEquity,
         currentRatio: fundamentalsData.currentRatio,
+        // Note: quickRatio, cashRatio not in schema
         
         // Dividend & cash flow
         dividendYield: fundamentalsData.dividendYield,
         freeCashflow: freeCashFlowInt,
+        // Note: dividendRate not fetched from Polygon
+        // Note: revenue, grossProfit, operatingIncome, netIncome, ebitda, earningsPerShare not in schema
         
         updatedAt: new Date(),
       };
@@ -256,6 +267,11 @@ class FundamentalsService {
         industry: result.sic_description,
         marketCap: result.market_cap,
         sharesOutstanding: result.share_class_shares_outstanding,
+        // Additional fields from ticker endpoint
+        description: result.description,
+        website: result.homepage_url,
+        employees: result.total_employees,
+        currency: result.currency_name?.toUpperCase(),
       };
     } catch (error: any) {
       console.error(`[Fundamentals Service] Error fetching ticker info for ${ticker}:`, error.message);
@@ -341,7 +357,7 @@ class FundamentalsService {
             tickers: ticker,
             timeframe: 'trailing_twelve_months',
             limit: 1,
-            sort: 'period_end.desc',
+            // Note: This endpoint returns most recent data by default
             apiKey: POLYGON_API_KEY,
           },
           timeout: 10000,
@@ -392,7 +408,7 @@ class FundamentalsService {
             tickers: ticker,
             timeframe: 'quarterly',
             limit: 1,
-            sort: 'period_end.desc',
+            // Note: This endpoint returns most recent data by default
             apiKey: POLYGON_API_KEY,
           },
           timeout: 10000,
@@ -495,6 +511,10 @@ class FundamentalsService {
       exchange: db.exchange,
       sector: db.sector,
       industry: db.industry,
+      website: db.website,
+      description: db.description,
+      currency: db.currency,
+      employees: db.employees,
       
       // Market data - Convert BigInt to number for JSON serialization
       marketCap: db.marketCap ? Number(db.marketCap) : undefined,
