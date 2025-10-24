@@ -11,7 +11,8 @@
 import axios from 'axios';
 import { prisma } from '../utils/prisma';
 import { getCached, setCached } from '../utils/redis';
-import { CACHE_TTL, UPDATE_THRESHOLD } from '../utils/constants';
+import { CACHE_TTL } from '../utils/constants';
+import { marketCapService } from './marketCapService';
 
 const POLYGON_API_KEY = process.env.POLYGON_API_KEY || '';
 const POLYGON_BASE_URL = 'https://api.polygon.io';
@@ -72,15 +73,20 @@ class EarningsService {
       const dbEarnings = await this.fetchFromDatabase(query);
       
       if (dbEarnings.length > 0) {
-        await setCached(cacheKey, dbEarnings, CACHE_TTL.EARNINGS_HISTORICAL);
-        console.log(`[Earnings Service] DB hit (past earnings, cached forever) for ${cacheKey} (${dbEarnings.length} events)`);
-        return dbEarnings;
+        // Filter by market cap availability
+        const filtered = await this.filterByMarketCap(dbEarnings);
+        await setCached(cacheKey, filtered, CACHE_TTL.EARNINGS_HISTORICAL);
+        console.log(`[Earnings Service] DB hit (past earnings, cached forever) for ${cacheKey} (${filtered.length} events after market cap filter)`);
+        return filtered;
       }
     }
 
     // 3. Fetch from Polygon API (upcoming earnings or data not in database)
     console.log(`[Earnings Service] Fetching from Polygon API: ${cacheKey} (${isPastEarnings ? 'past data not in DB' : 'upcoming earnings - always fetch fresh'})`);
-    return await this.fetchFromPolygon(query);
+    const earnings = await this.fetchFromPolygon(query);
+    
+    // Filter by market cap availability
+    return await this.filterByMarketCap(earnings);
   }
 
   /**
@@ -250,6 +256,33 @@ class EarningsService {
     } catch (error: any) {
       console.error(`[Earnings Service] Error storing in database:`, error.message);
     }
+  }
+
+  /**
+   * Filter earnings by market cap availability
+   * Only include earnings for companies that have market cap data
+   */
+  private async filterByMarketCap(earnings: EarningsEvent[]): Promise<EarningsEvent[]> {
+    if (earnings.length === 0) return earnings;
+    
+    // Get unique tickers
+    const tickers = [...new Set(earnings.map(e => e.ticker))];
+    
+    // Fetch market caps for all tickers
+    const marketCaps = await marketCapService.getMarketCaps(tickers);
+    const tickersWithMarketCap = new Set(marketCaps.map(mc => mc.ticker));
+    
+    // Filter earnings to only include tickers with market cap data
+    const filtered = earnings.filter(earning => {
+      const hasMarketCap = tickersWithMarketCap.has(earning.ticker.toUpperCase());
+      if (!hasMarketCap) {
+        console.log(`[Earnings Service] Filtering out ${earning.ticker} - no market cap data available`);
+      }
+      return hasMarketCap;
+    });
+    
+    console.log(`[Earnings Service] Market cap filter: ${earnings.length} → ${filtered.length} earnings (removed ${earnings.length - filtered.length})`);
+    return filtered;
   }
 
   /**
