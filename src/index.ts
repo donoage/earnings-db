@@ -11,6 +11,7 @@ import healthRouter from './routes/health';
 import fundamentalsRouter from './routes/fundamentals';
 import marketCapRouter from './routes/marketCap';
 import earningsRouter from './routes/earnings';
+import logoAndMarketCapRouter from './routes/logoAndMarketCap';
 
 // Load environment variables
 dotenv.config();
@@ -55,6 +56,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // Routes
 app.use('/health', healthRouter);
 app.use('/api/logos', logosRouter);
+app.use('/api/logo-and-market-cap', logoAndMarketCapRouter);
 app.use('/api/fundamentals', fundamentalsRouter);
 app.use('/api/market-cap', marketCapRouter);
 app.use('/api/earnings', earningsRouter);
