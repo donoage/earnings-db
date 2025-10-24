@@ -282,6 +282,8 @@ class FundamentalsService {
         grossMargin: fundamentalsData.grossMargin,
         returnOnAssets: fundamentalsData.returnOnAssets,
         returnOnEquity: fundamentalsData.returnOnEquity,
+        revenueGrowth: fundamentalsData.revenueGrowth,
+        earningsGrowth: fundamentalsData.earningsGrowth,
         
         // Liquidity & leverage ratios
         debtToEquity: fundamentalsData.debtToEquity,
@@ -446,6 +448,7 @@ class FundamentalsService {
 
   /**
    * Fetch income statement from Polygon
+   * Fetches 2 years of annual data to calculate YoY growth
    * Reference: https://polygon.io/docs/api/llms/rest/stocks/fundamentals/income-statements
    */
   private async fetchIncomeStatement(ticker: string): Promise<Partial<FundamentalsData> | null> {
@@ -455,9 +458,9 @@ class FundamentalsService {
         {
           params: {
             tickers: ticker,
-            timeframe: 'trailing_twelve_months',
-            limit: 1,
-            // Note: This endpoint returns most recent data by default
+            timeframe: 'annual',
+            limit: 2, // Fetch 2 years for YoY growth calculation
+            sort: 'period_end.desc',
             apiKey: POLYGON_API_KEY,
           },
           timeout: 10000,
@@ -468,19 +471,40 @@ class FundamentalsService {
         return null;
       }
 
-      const result = response.data.results[0];
+      const currentYear = response.data.results[0];
       
-      // Extract key income statement metrics
-      const revenue = result.revenue;
-      const grossProfit = result.gross_profit;
-      const operatingIncome = result.operating_income;
-      const netIncome = result.net_income_loss_attributable_common_shareholders;
-      const ebitda = result.ebitda;
+      // Extract key income statement metrics from current year
+      const revenue = currentYear.revenue;
+      const grossProfit = currentYear.gross_profit;
+      const operatingIncome = currentYear.operating_income;
+      const netIncome = currentYear.net_income_loss_attributable_common_shareholders;
+      const ebitda = currentYear.ebitda;
       
       // Calculate margins if we have revenue
       const profitMargin = revenue && netIncome ? netIncome / revenue : undefined;
       const operatingMargin = revenue && operatingIncome ? operatingIncome / revenue : undefined;
       const grossMargin = revenue && grossProfit ? grossProfit / revenue : undefined;
+
+      // Calculate YoY growth if we have 2 years of data
+      let revenueGrowth: number | undefined;
+      let earningsGrowth: number | undefined;
+
+      if (response.data.results.length >= 2) {
+        const previousYear = response.data.results[1];
+        
+        // Revenue Growth (YoY)
+        if (revenue && previousYear.revenue && previousYear.revenue !== 0) {
+          revenueGrowth = ((revenue - previousYear.revenue) / previousYear.revenue) * 100;
+        }
+        
+        // Earnings Growth (YoY)
+        const prevNetIncome = previousYear.net_income_loss_attributable_common_shareholders;
+        if (netIncome && prevNetIncome && prevNetIncome !== 0) {
+          earningsGrowth = ((netIncome - prevNetIncome) / prevNetIncome) * 100;
+        }
+
+        console.log(`[Fundamentals Service] ✓ Growth for ${ticker}: revenue=${revenueGrowth?.toFixed(1)}%, earnings=${earningsGrowth?.toFixed(1)}%`);
+      }
 
       return {
         revenue,
@@ -491,6 +515,8 @@ class FundamentalsService {
         profitMargin,
         operatingMargin,
         grossMargin,
+        revenueGrowth,
+        earningsGrowth,
       };
     } catch (error: any) {
       console.error(`[Fundamentals Service] Error fetching income statement for ${ticker}:`, error.message);
