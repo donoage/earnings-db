@@ -147,7 +147,6 @@ class FundamentalsService {
         await this.clearCache(tickerUpper);
         return await this.fetchFromPolygon(tickerUpper);
       }
-      console.log(`[Fundamentals Service] Cache hit for ${tickerUpper}`);
       return cached;
     }
 

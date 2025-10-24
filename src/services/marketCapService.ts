@@ -34,7 +34,6 @@ class MarketCapService {
     // 1. Check Redis cache
     const cached = await getCached<MarketCapData>(cacheKey);
     if (cached) {
-      console.log(`[Market Cap Service] Cache hit for ${tickerUpper}`);
       return cached;
     }
 

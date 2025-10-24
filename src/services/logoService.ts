@@ -30,7 +30,6 @@ export class LogoService {
     // 1. Check Redis cache
     const cached = await getCached<LogoData>(cacheKey);
     if (cached) {
-      console.log(`[Logo Service] Cache hit for ${tickerUpper}`);
       return cached;
     }
 
@@ -40,7 +39,6 @@ export class LogoService {
     });
 
     if (dbLogo) {
-      console.log(`[Logo Service] Database hit for ${tickerUpper}`);
       const logoData: LogoData = {
         ticker: dbLogo.ticker,
         iconUrl: dbLogo.iconUrl,

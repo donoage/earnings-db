@@ -62,7 +62,6 @@ class EarningsService {
     if (isPastEarnings) {
       const cached = await getCached<EarningsEvent[]>(cacheKey);
       if (cached) {
-        console.log(`[Earnings Service] Cache hit (past earnings) for ${cacheKey}`);
         return cached;
       }
     }
