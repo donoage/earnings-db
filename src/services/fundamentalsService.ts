@@ -588,13 +588,16 @@ class FundamentalsService {
       await deleteCached(cacheKey);
       console.log(`[Fundamentals Service] Cleared Redis cache for ${tickerUpper}`);
 
-      // Delete from PostgreSQL
-      await prisma.fundamental.delete({
+      // Delete from PostgreSQL (using deleteMany to avoid errors if record doesn't exist)
+      const deleteResult = await prisma.fundamental.deleteMany({
         where: { ticker: tickerUpper },
-      }).catch(() => {
-        console.log(`[Fundamentals Service] No database entry for ${tickerUpper}`);
       });
-      console.log(`[Fundamentals Service] Cleared database entry for ${tickerUpper}`);
+      
+      if (deleteResult.count > 0) {
+        console.log(`[Fundamentals Service] Cleared database entry for ${tickerUpper}`);
+      } else {
+        console.log(`[Fundamentals Service] No database entry found for ${tickerUpper}`);
+      }
 
       return {
         success: true,
