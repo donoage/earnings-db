@@ -16,6 +16,9 @@ const router = Router();
  * Example: /api/logo-and-market-cap?tickers=AAPL,MSFT,GOOGL
  */
 router.get('/', async (req: Request, res: Response) => {
+  const requestId = Math.random().toString(36).substring(7);
+  const startTime = Date.now();
+  
   try {
     const { tickers } = req.query;
     
@@ -24,13 +27,17 @@ router.get('/', async (req: Request, res: Response) => {
     }
 
     const tickerList = tickers.split(',').map(t => t.trim()).filter(t => t.length > 0);
+    console.log(`[Logo&MarketCap:${requestId}] 📊 Request for ${tickerList.length} tickers`);
     
     if (tickerList.length === 0) {
       return res.json({ logos: [], marketCaps: {} });
     }
 
     // Step 1: Get market caps (filters out invalid tickers)
+    const mcStart = Date.now();
     const marketCaps = await marketCapService.getMarketCaps(tickerList);
+    console.log(`[Logo&MarketCap:${requestId}] ✅ Market caps fetched in ${Date.now() - mcStart}ms`);
+    
     const validTickers = marketCaps.map(mc => mc.ticker);
     
     // Create market cap map
@@ -44,7 +51,9 @@ router.get('/', async (req: Request, res: Response) => {
     }
 
     // Step 2: Get logos only for valid tickers
+    const logoStart = Date.now();
     const logos = await logoService.getLogos(validTickers);
+    console.log(`[Logo&MarketCap:${requestId}] ✅ Logos fetched in ${Date.now() - logoStart}ms`);
     
     // Get base URL for proxy endpoints
     const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
@@ -64,12 +73,15 @@ router.get('/', async (req: Request, res: Response) => {
       updated: Date.now(),
     }));
     
+    const totalTime = Date.now() - startTime;
+    console.log(`[Logo&MarketCap:${requestId}] ✅ Total request time: ${totalTime}ms`);
+    
     res.json({
       logos: formattedLogos,
       marketCaps: marketCapMap,
     });
   } catch (error: any) {
-    console.error('[Logo and Market Cap API] Error:', error);
+    console.error(`[Logo&MarketCap:${requestId}] ❌ Error after ${Date.now() - startTime}ms:`, error.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
