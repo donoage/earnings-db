@@ -273,11 +273,7 @@ class EarningsService {
     
     // Filter earnings to only include tickers with market cap data
     const filtered = earnings.filter(earning => {
-      const hasMarketCap = tickersWithMarketCap.has(earning.ticker.toUpperCase());
-      if (!hasMarketCap) {
-        console.log(`[Earnings Service] Filtering out ${earning.ticker} - no market cap data available`);
-      }
-      return hasMarketCap;
+      return tickersWithMarketCap.has(earning.ticker.toUpperCase());
     });
     
     console.log(`[Earnings Service] Market cap filter: ${earnings.length} → ${filtered.length} earnings (removed ${earnings.length - filtered.length})`);
