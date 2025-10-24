@@ -129,3 +129,27 @@ model Fundamental {
   @@map("fundamentals")
 }
 
+// News articles from Polygon
+model News {
+  id              String    @id @db.VarChar(100)
+  ticker          String?   @db.VarChar(10)
+  title           String    @db.Text
+  author          String?   @db.VarChar(255)
+  publishedUtc    DateTime  @map("published_utc") @db.Timestamp(6)
+  articleUrl      String    @map("article_url") @db.Text
+  imageUrl        String?   @map("image_url") @db.Text
+  description     String?   @db.Text
+  publisherName   String    @map("publisher_name") @db.VarChar(255)
+  publisherUrl    String?   @map("publisher_url") @db.Text
+  publisherLogo   String?   @map("publisher_logo") @db.Text
+  tickers         String[]  @db.VarChar(10)
+  keywords        String[]  @db.VarChar(100)
+  sentiment       String?   @db.VarChar(20)
+  sentimentScore  Decimal?  @map("sentiment_score") @db.Decimal(5, 4)
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamp(6)
+
+  @@index([ticker, publishedUtc], name: "idx_ticker_published")
+  @@index([publishedUtc], name: "idx_published")
+  @@map("news")
+}
+

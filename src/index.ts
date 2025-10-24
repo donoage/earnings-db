@@ -12,6 +12,7 @@ import fundamentalsRouter from './routes/fundamentals';
 import marketCapRouter from './routes/marketCap';
 import earningsRouter from './routes/earnings';
 import logoAndMarketCapRouter from './routes/logoAndMarketCap';
+import newsRouter from './routes/news';
 
 // Load environment variables
 dotenv.config();
@@ -60,6 +61,7 @@ app.use('/api/logo-and-market-cap', logoAndMarketCapRouter);
 app.use('/api/fundamentals', fundamentalsRouter);
 app.use('/api/market-cap', marketCapRouter);
 app.use('/api/earnings', earningsRouter);
+app.use('/api/news', newsRouter);
 
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
@@ -85,6 +87,12 @@ app.get('/', (req: Request, res: Response) => {
       earnings: {
         getRange: '/api/earnings?dateFrom=2025-01-01&dateTo=2025-01-31',
         getWithImportance: '/api/earnings?dateFrom=2025-01-01&dateTo=2025-01-31&importance=5',
+      },
+      news: {
+        getAll: '/api/news?limit=50',
+        getByTicker: '/api/news/:ticker',
+        getWithDateRange: '/api/news?dateFrom=2025-01-01&dateTo=2025-01-31',
+        clearCache: '/api/news/cache/:ticker? (DELETE)',
       },
     },
   });
@@ -127,6 +135,8 @@ app.listen(PORT, () => {
   console.log(`  GET  /api/fundamentals?tickers=AAPL,MSFT`);
   console.log(`  GET  /api/market-cap?tickers=AAPL,MSFT`);
   console.log(`  GET  /api/earnings?dateFrom=2025-01-01&dateTo=2025-01-31`);
+  console.log(`  GET  /api/news?limit=50`);
+  console.log(`  GET  /api/news/:ticker`);
   console.log('');
 });
 
