@@ -32,6 +32,7 @@ interface FundamentalsData {
   marketCap?: number;
   sharesOutstanding?: number;
   currentPrice?: number;
+  averageVolume?: number;
   
   // Valuation ratios (from /ratios endpoint)
   priceToEarnings?: number;
@@ -42,12 +43,14 @@ interface FundamentalsData {
   enterpriseValue?: number;
   evToSales?: number;
   evToEbitda?: number;
+  earningsPerShare?: number;
   
-  // Profitability ratios (from /ratios endpoint)
+  // Profitability ratios (from /ratios endpoint & income statements)
   returnOnAssets?: number;
   returnOnEquity?: number;
   profitMargin?: number;
   operatingMargin?: number;
+  grossMargin?: number;
   
   // Liquidity ratios (from /ratios endpoint)
   currentRatio?: number;
@@ -59,6 +62,7 @@ interface FundamentalsData {
   
   // Dividend metrics (from /ratios endpoint)
   dividendYield?: number;
+  dividendRate?: number;
   
   // Cash flow metrics (from /ratios endpoint)
   freeCashFlow?: number;
@@ -69,7 +73,21 @@ interface FundamentalsData {
   operatingIncome?: number;
   netIncome?: number;
   ebitda?: number;
-  earningsPerShare?: number;
+  
+  // Balance Sheet metrics (from /balance-sheets endpoint)
+  totalAssets?: number;
+  currentAssets?: number;
+  totalLiabilities?: number;
+  currentLiabilities?: number;
+  totalEquity?: number;
+  cash?: number;
+  longTermDebt?: number;
+  
+  // Cash Flow Statement metrics (from /cash-flow-statements endpoint)
+  operatingCashFlow?: number;
+  cashFromInvesting?: number;  // investingCashFlow
+  cashFromFinancing?: number;  // financingCashFlow
+  capitalExpenditures?: number;  // capex
   
   // Additional metrics
   beta?: number;
@@ -212,29 +230,58 @@ class FundamentalsService {
         marketCap: fundamentalsData.marketCap,
         sharesOutstanding: fundamentalsData.sharesOutstanding,
         currentPrice: fundamentalsData.currentPrice,
+        averageVolume: fundamentalsData.averageVolume,
         
-        // Valuation ratios (only fields that exist in schema)
+        // Valuation ratios
         priceToEarnings: fundamentalsData.priceToEarnings,
         priceToBook: fundamentalsData.priceToBook,
         priceToSales: fundamentalsData.priceToSales,
-        // Note: enterpriseValue, evToSales, evToEbitda, priceToCashFlow, priceToFreeCashFlow not in schema
+        priceToCashFlow: fundamentalsData.priceToCashFlow,
+        priceToFreeCashFlow: fundamentalsData.priceToFreeCashFlow,
+        enterpriseValue: fundamentalsData.enterpriseValue,
+        evToSales: fundamentalsData.evToSales,
+        evToEbitda: fundamentalsData.evToEbitda,
         
         // Profitability ratios
         profitMargin: fundamentalsData.profitMargin,
         operatingMargin: fundamentalsData.operatingMargin,
+        grossMargin: fundamentalsData.grossMargin,
         returnOnAssets: fundamentalsData.returnOnAssets,
         returnOnEquity: fundamentalsData.returnOnEquity,
         
         // Liquidity & leverage ratios
         debtToEquity: fundamentalsData.debtToEquity,
         currentRatio: fundamentalsData.currentRatio,
-        // Note: quickRatio, cashRatio not in schema
+        quickRatio: fundamentalsData.quickRatio,
+        cashRatio: fundamentalsData.cashRatio,
         
         // Dividend & cash flow
         dividendYield: fundamentalsData.dividendYield,
+        dividendRate: fundamentalsData.dividendRate,
         freeCashflow: fundamentalsData.freeCashFlow,
-        // Note: dividendRate not fetched from Polygon
-        // Note: revenue, grossProfit, operatingIncome, netIncome, ebitda, earningsPerShare not in schema
+        
+        // Income statement metrics
+        revenue: fundamentalsData.revenue,
+        grossProfit: fundamentalsData.grossProfit,
+        operatingIncome: fundamentalsData.operatingIncome,
+        netIncome: fundamentalsData.netIncome,
+        ebitda: fundamentalsData.ebitda,
+        earningsPerShare: fundamentalsData.earningsPerShare,
+        
+        // Balance Sheet fields
+        totalAssets: fundamentalsData.totalAssets,
+        currentAssets: fundamentalsData.currentAssets,
+        totalLiabilities: fundamentalsData.totalLiabilities,
+        currentLiabilities: fundamentalsData.currentLiabilities,
+        totalEquity: fundamentalsData.totalEquity,
+        cash: fundamentalsData.cash,
+        longTermDebt: fundamentalsData.longTermDebt,
+        
+        // Cash Flow fields
+        operatingCashFlow: fundamentalsData.operatingCashFlow,
+        investingCashFlow: fundamentalsData.cashFromInvesting,
+        financingCashFlow: fundamentalsData.cashFromFinancing,
+        capex: fundamentalsData.capitalExpenditures,
         
         updatedAt: new Date(),
       };
@@ -325,6 +372,7 @@ class FundamentalsService {
         // Current price and market data
         currentPrice: result.price,
         marketCap: result.market_cap,
+        averageVolume: result.average_volume,
         earningsPerShare: result.earnings_per_share,
         
         // Valuation ratios
@@ -397,6 +445,7 @@ class FundamentalsService {
       // Calculate margins if we have revenue
       const profitMargin = revenue && netIncome ? netIncome / revenue : undefined;
       const operatingMargin = revenue && operatingIncome ? operatingIncome / revenue : undefined;
+      const grossMargin = revenue && grossProfit ? grossProfit / revenue : undefined;
 
       return {
         revenue,
@@ -406,6 +455,7 @@ class FundamentalsService {
         ebitda,
         profitMargin,
         operatingMargin,
+        grossMargin,
       };
     } catch (error: any) {
       console.error(`[Fundamentals Service] Error fetching income statement for ${ticker}:`, error.message);
@@ -415,6 +465,7 @@ class FundamentalsService {
 
   /**
    * Fetch balance sheet from Polygon
+   * Reference: https://polygon.io/docs/rest/stocks/fundamentals/balance-sheets
    */
   private async fetchBalanceSheet(ticker: string): Promise<Partial<FundamentalsData> | null> {
     try {
@@ -425,7 +476,7 @@ class FundamentalsService {
             tickers: ticker,
             timeframe: 'quarterly',
             limit: 1,
-            // Note: This endpoint returns most recent data by default
+            sort: 'period_end.desc',
             apiKey: POLYGON_API_KEY,
           },
           timeout: 10000,
@@ -439,11 +490,18 @@ class FundamentalsService {
       const result = response.data.results[0];
       
       // Calculate current ratio if we have the data
-      const currentRatio = result.current_assets && result.current_liabilities
-        ? result.current_assets / result.current_liabilities
+      const currentRatio = result.total_current_assets && result.total_current_liabilities
+        ? result.total_current_assets / result.total_current_liabilities
         : undefined;
 
       return {
+        totalAssets: result.total_assets,
+        currentAssets: result.total_current_assets,
+        totalLiabilities: result.total_liabilities,
+        currentLiabilities: result.total_current_liabilities,
+        totalEquity: result.total_equity,
+        cash: result.cash_and_equivalents,
+        longTermDebt: result.long_term_debt_and_capital_lease_obligations,
         currentRatio,
       };
     } catch (error: any) {
@@ -454,6 +512,7 @@ class FundamentalsService {
 
   /**
    * Fetch cash flow statement from Polygon
+   * Reference: https://polygon.io/docs/rest/stocks/fundamentals/cash-flow-statements
    */
   private async fetchCashFlow(ticker: string): Promise<Partial<FundamentalsData> | null> {
     try {
@@ -475,9 +534,15 @@ class FundamentalsService {
         return null;
       }
 
-      // Cash flow data is available but we're not storing it in the current schema
-      // This can be extended when we add more fields to the schema
-      return {};
+      const result = response.data.results[0];
+      
+      return {
+        operatingCashFlow: result.net_cash_from_operating_activities,
+        cashFromInvesting: result.net_cash_from_investing_activities,
+        cashFromFinancing: result.net_cash_from_financing_activities,
+        capitalExpenditures: result.purchase_of_property_plant_and_equipment,
+        // Note: freeCashFlow is already fetched from ratios endpoint
+      };
     } catch (error: any) {
       console.error(`[Fundamentals Service] Error fetching cash flow for ${ticker}:`, error.message);
       return null;
@@ -493,7 +558,7 @@ class FundamentalsService {
 
     try {
       // Delete from Redis cache
-      const { getCached, deleteCached } = await import('../utils/redis');
+      const { deleteCached } = await import('../utils/redis');
       await deleteCached(cacheKey);
       console.log(`[Fundamentals Service] Cleared Redis cache for ${tickerUpper}`);
 
@@ -537,6 +602,7 @@ class FundamentalsService {
       marketCap: db.marketCap ? Number(db.marketCap) : undefined,
       sharesOutstanding: db.sharesOutstanding ? Number(db.sharesOutstanding) : undefined,
       currentPrice: db.currentPrice ? Number(db.currentPrice) : undefined,
+      averageVolume: db.averageVolume ? Number(db.averageVolume) : undefined,
       
       // Valuation ratios
       priceToEarnings: db.priceToEarnings ? Number(db.priceToEarnings) : undefined,
@@ -547,10 +613,12 @@ class FundamentalsService {
       enterpriseValue: db.enterpriseValue ? Number(db.enterpriseValue) : undefined,
       evToSales: db.evToSales ? Number(db.evToSales) : undefined,
       evToEbitda: db.evToEbitda ? Number(db.evToEbitda) : undefined,
+      earningsPerShare: db.earningsPerShare ? Number(db.earningsPerShare) : undefined,
       
       // Profitability ratios
       profitMargin: db.profitMargin ? Number(db.profitMargin) : undefined,
       operatingMargin: db.operatingMargin ? Number(db.operatingMargin) : undefined,
+      grossMargin: db.grossMargin ? Number(db.grossMargin) : undefined,
       returnOnAssets: db.returnOnAssets ? Number(db.returnOnAssets) : undefined,
       returnOnEquity: db.returnOnEquity ? Number(db.returnOnEquity) : undefined,
       
@@ -564,6 +632,7 @@ class FundamentalsService {
       
       // Dividend & cash flow
       dividendYield: db.dividendYield ? Number(db.dividendYield) : undefined,
+      dividendRate: db.dividendRate ? Number(db.dividendRate) : undefined,
       freeCashFlow: db.freeCashflow ? Number(db.freeCashflow) : undefined,
       
       // Income statement metrics
@@ -572,7 +641,21 @@ class FundamentalsService {
       operatingIncome: db.operatingIncome ? Number(db.operatingIncome) : undefined,
       netIncome: db.netIncome ? Number(db.netIncome) : undefined,
       ebitda: db.ebitda ? Number(db.ebitda) : undefined,
-      earningsPerShare: db.earningsPerShare ? Number(db.earningsPerShare) : undefined,
+      
+      // Balance Sheet metrics
+      totalAssets: db.totalAssets ? Number(db.totalAssets) : undefined,
+      currentAssets: db.currentAssets ? Number(db.currentAssets) : undefined,
+      totalLiabilities: db.totalLiabilities ? Number(db.totalLiabilities) : undefined,
+      currentLiabilities: db.currentLiabilities ? Number(db.currentLiabilities) : undefined,
+      totalEquity: db.totalEquity ? Number(db.totalEquity) : undefined,
+      cash: db.cash ? Number(db.cash) : undefined,
+      longTermDebt: db.longTermDebt ? Number(db.longTermDebt) : undefined,
+      
+      // Cash Flow metrics
+      operatingCashFlow: db.operatingCashFlow ? Number(db.operatingCashFlow) : undefined,
+      cashFromInvesting: db.investingCashFlow ? Number(db.investingCashFlow) : undefined,
+      cashFromFinancing: db.financingCashFlow ? Number(db.financingCashFlow) : undefined,
+      capitalExpenditures: db.capex ? Number(db.capex) : undefined,
       
       // Additional metrics
       beta: db.beta ? Number(db.beta) : undefined,

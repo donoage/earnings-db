@@ -69,19 +69,61 @@ model Fundamental {
   sharesOutstanding   Decimal?  @map("shares_outstanding") @db.Decimal(20, 2)
   currentPrice        Decimal?  @map("current_price") @db.Decimal(12, 4)
   currency            String?   @db.VarChar(5)
+  averageVolume       Decimal?  @map("average_volume") @db.Decimal(20, 2)
+  
+  // Valuation ratios
   priceToEarnings     Decimal?  @map("price_to_earnings") @db.Decimal(10, 4)
   priceToBook         Decimal?  @map("price_to_book") @db.Decimal(10, 4)
   priceToSales        Decimal?  @map("price_to_sales") @db.Decimal(10, 4)
+  priceToCashFlow     Decimal?  @map("price_to_cash_flow") @db.Decimal(10, 4)
+  priceToFreeCashFlow Decimal?  @map("price_to_free_cash_flow") @db.Decimal(10, 4)
+  enterpriseValue     Decimal?  @map("enterprise_value") @db.Decimal(20, 2)
+  evToSales           Decimal?  @map("ev_to_sales") @db.Decimal(10, 4)
+  evToEbitda          Decimal?  @map("ev_to_ebitda") @db.Decimal(10, 4)
+  
+  // Profitability ratios
   profitMargin        Decimal?  @map("profit_margin") @db.Decimal(10, 4)
   operatingMargin     Decimal?  @map("operating_margin") @db.Decimal(10, 4)
+  grossMargin         Decimal?  @map("gross_margin") @db.Decimal(10, 4)
   returnOnAssets      Decimal?  @map("return_on_assets") @db.Decimal(10, 4)
   returnOnEquity      Decimal?  @map("return_on_equity") @db.Decimal(10, 4)
+  
+  // Liquidity ratios
   debtToEquity        Decimal?  @map("debt_to_equity") @db.Decimal(10, 4)
   currentRatio        Decimal?  @map("current_ratio") @db.Decimal(10, 4)
+  quickRatio          Decimal?  @map("quick_ratio") @db.Decimal(10, 4)
+  cashRatio           Decimal?  @map("cash_ratio") @db.Decimal(10, 4)
+  
+  // Cash flow & dividends
   freeCashflow        Decimal?  @map("free_cashflow") @db.Decimal(20, 2)
   dividendYield       Decimal?  @map("dividend_yield") @db.Decimal(10, 4)
   dividendRate        Decimal?  @map("dividend_rate") @db.Decimal(10, 4)
+  
+  // Income statement metrics
+  revenue             Decimal?  @map("revenue") @db.Decimal(20, 2)
+  grossProfit         Decimal?  @map("gross_profit") @db.Decimal(20, 2)
+  operatingIncome     Decimal?  @map("operating_income") @db.Decimal(20, 2)
+  netIncome           Decimal?  @map("net_income") @db.Decimal(20, 2)
+  ebitda              Decimal?  @map("ebitda") @db.Decimal(20, 2)
+  earningsPerShare    Decimal?  @map("earnings_per_share") @db.Decimal(10, 4)
+  
   employees           Int?
+  
+  // Balance Sheet fields
+  totalAssets         Decimal?  @map("total_assets") @db.Decimal(20, 2)
+  currentAssets       Decimal?  @map("current_assets") @db.Decimal(20, 2)
+  totalLiabilities    Decimal?  @map("total_liabilities") @db.Decimal(20, 2)
+  currentLiabilities  Decimal?  @map("current_liabilities") @db.Decimal(20, 2)
+  totalEquity         Decimal?  @map("total_equity") @db.Decimal(20, 2)
+  cash                Decimal?  @map("cash") @db.Decimal(20, 2)
+  longTermDebt        Decimal?  @map("long_term_debt") @db.Decimal(20, 2)
+  
+  // Cash Flow fields
+  operatingCashFlow   Decimal?  @map("operating_cash_flow") @db.Decimal(20, 2)
+  investingCashFlow   Decimal?  @map("investing_cash_flow") @db.Decimal(20, 2)
+  financingCashFlow   Decimal?  @map("financing_cash_flow") @db.Decimal(20, 2)
+  capex               Decimal?  @map("capex") @db.Decimal(20, 2)
+  
   updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamp(6)
 
   @@map("fundamentals")
