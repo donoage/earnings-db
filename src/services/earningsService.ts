@@ -340,19 +340,39 @@ class EarningsService {
 
     // For each date, get top 5 before open and top 5 after close
     byDate.forEach((dayEarnings) => {
-      // Split by session
-      const beforeOpen = dayEarnings.filter(e => 
-        !e.time || e.time === 'bmo' || e.time === 'time-pre-market' || (e.time && e.time.includes('before'))
-      );
-      const afterClose = dayEarnings.filter(e => 
-        e.time && (e.time === 'amc' || e.time === 'time-after-hours' || e.time.includes('after'))
-      );
+      // Split by session based on time
+      // Market opens at 09:30, so anything before that is "before open"
+      // Market closes at 16:00, so anything at or after that is "after close"
+      const beforeOpen = dayEarnings.filter(e => {
+        if (!e.time) return true; // No time specified = before open
+        // Check for text indicators
+        if (e.time === 'bmo' || e.time === 'time-pre-market' || e.time.includes('before')) return true;
+        // Check for time format (HH:MM:SS)
+        if (e.time.includes(':')) {
+          const hour = parseInt(e.time.split(':')[0]);
+          return hour < 9 || (hour === 9 && parseInt(e.time.split(':')[1]) < 30);
+        }
+        return false;
+      });
+      
+      const afterClose = dayEarnings.filter(e => {
+        if (!e.time) return false;
+        // Check for text indicators
+        if (e.time === 'amc' || e.time === 'time-after-hours' || e.time.includes('after')) return true;
+        // Check for time format (HH:MM:SS)
+        if (e.time.includes(':')) {
+          const hour = parseInt(e.time.split(':')[0]);
+          return hour >= 16;
+        }
+        return false;
+      });
 
       // Take top 5 from each session (already sorted by market cap)
       primary.push(...beforeOpen.slice(0, 5));
       primary.push(...afterClose.slice(0, 5));
     });
 
+    console.log(`[Earnings Service] Extracted ${primary.length} primary earnings from ${earnings.length} total`);
     return primary;
   }
 
