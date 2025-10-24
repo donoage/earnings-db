@@ -20,6 +20,8 @@ const POLYGON_BASE_URL = 'https://api.polygon.io';
 interface MarketCapData {
   ticker: string;
   marketCap: number;
+  week52High?: number;
+  week52Low?: number;
   updatedAt: Date;
 }
 
@@ -108,7 +110,7 @@ class MarketCapService {
   }
 
   /**
-   * Fetch market cap from Polygon API
+   * Fetch market cap and 52-week high/low from Polygon API
    */
   private async fetchFromPolygon(ticker: string): Promise<MarketCapData | null> {
     try {
@@ -117,7 +119,8 @@ class MarketCapService {
         return null;
       }
       
-      const response = await axios.get(
+      // Fetch ticker details for market cap
+      const tickerResponse = await axios.get(
         `${POLYGON_BASE_URL}/v3/reference/tickers/${ticker}`,
         {
           params: { apiKey: POLYGON_API_KEY },
@@ -125,41 +128,84 @@ class MarketCapService {
         }
       );
 
-      if (response.data.status !== 'OK' || !response.data.results) {
+      if (tickerResponse.data.status !== 'OK' || !tickerResponse.data.results) {
         return null;
       }
 
-      const result = response.data.results;
+      const result = tickerResponse.data.results;
       const marketCap = result.market_cap;
       
       if (!marketCap) {
         return null;
       }
 
+      // Fetch 52-week high/low using aggregates (past year of daily bars)
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      const fromDate = oneYearAgo.toISOString().split('T')[0];
+      const toDate = new Date().toISOString().split('T')[0];
+
+      let week52High: number | undefined;
+      let week52Low: number | undefined;
+
+      try {
+        const aggregatesResponse = await axios.get(
+          `${POLYGON_BASE_URL}/v2/aggs/ticker/${ticker}/range/1/day/${fromDate}/${toDate}`,
+          {
+            params: { 
+              apiKey: POLYGON_API_KEY,
+              adjusted: true,
+              sort: 'asc',
+              limit: 50000
+            },
+            timeout: 10000,
+          }
+        );
+
+        if (aggregatesResponse.data.status === 'OK' && aggregatesResponse.data.results) {
+          const bars = aggregatesResponse.data.results;
+          if (bars.length > 0) {
+            week52High = Math.max(...bars.map((bar: any) => bar.h));
+            week52Low = Math.min(...bars.map((bar: any) => bar.l));
+          }
+        }
+      } catch (aggError: any) {
+        console.log(`[Market Cap Service] Could not fetch 52-week data for ${ticker}:`, aggError.message);
+        // Continue without 52-week data
+      }
+
       const marketCapData: MarketCapData = {
         ticker: ticker.toUpperCase(),
         marketCap,
+        week52High,
+        week52Low,
         updatedAt: new Date(),
       };
 
       // Update in PostgreSQL (upsert into Fundamental)
-      // Market cap is now stored as Decimal in the schema
       await prisma.fundamental.upsert({
         where: { ticker: marketCapData.ticker },
         update: {
           marketCap: marketCapData.marketCap,
+          week52High: marketCapData.week52High,
+          week52Low: marketCapData.week52Low,
           updatedAt: new Date(),
         },
         create: {
           ticker: marketCapData.ticker,
           companyName: result.name || marketCapData.ticker,
           marketCap: marketCapData.marketCap,
+          week52High: marketCapData.week52High,
+          week52Low: marketCapData.week52Low,
         },
       });
 
-      // Cache in Redis
+      // Cache in Redis (12 hour TTL as requested)
       const cacheKey = `marketcap:${ticker.toUpperCase()}`;
-      await setCached(cacheKey, marketCapData, CACHE_TTL.MARKET_CAP);
+      const TWELVE_HOURS = 12 * 60 * 60 * 1000;
+      await setCached(cacheKey, marketCapData, TWELVE_HOURS);
+
+      console.log(`[Market Cap Service] Fetched ${ticker}: marketCap=${marketCap}, 52wHigh=${week52High}, 52wLow=${week52Low}`);
 
       return marketCapData;
     } catch (error: any) {

@@ -70,6 +70,8 @@ model Fundamental {
   currentPrice        Decimal?  @map("current_price") @db.Decimal(12, 4)
   currency            String?   @db.VarChar(5)
   averageVolume       Decimal?  @map("average_volume") @db.Decimal(20, 2)
+  week52High          Decimal?  @map("week_52_high") @db.Decimal(12, 4)
+  week52Low           Decimal?  @map("week_52_low") @db.Decimal(12, 4)
   
   // Valuation ratios
   priceToEarnings     Decimal?  @map("price_to_earnings") @db.Decimal(10, 4)
