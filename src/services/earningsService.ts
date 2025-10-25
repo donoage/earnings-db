@@ -51,7 +51,12 @@ class EarningsService {
    */
   async getEarnings(query: EarningsQuery): Promise<EarningsEvent[]> {
     const logger = createScopedLogger('EarningsService.getEarnings');
-    logger.info('Called', query);
+    logger.info('Called', { 
+      dateFrom: query.dateFrom,
+      dateTo: query.dateTo,
+      tickers: query.tickers,
+      importance: query.importance 
+    });
     
     const now = new Date();
     now.setHours(0, 0, 0, 0); // Start of today
@@ -427,7 +432,12 @@ class EarningsService {
    */
   async getPrimaryEarnings(query: EarningsQuery): Promise<EarningsEvent[]> {
     const logger = createScopedLogger('EarningsService.getPrimaryEarnings');
-    logger.info('Called', query);
+    logger.info('Called', { 
+      dateFrom: query.dateFrom,
+      dateTo: query.dateTo,
+      tickers: query.tickers,
+      importance: query.importance 
+    });
     
     try {
       const startTime = Date.now();
