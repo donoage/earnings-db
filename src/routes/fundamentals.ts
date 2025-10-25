@@ -5,6 +5,7 @@
 
 import express, { Request, Response } from 'express';
 import { fundamentalsService } from '../services/fundamentalsService';
+import log from '../utils/logger';
 
 const router = express.Router();
 
@@ -42,7 +43,12 @@ router.get('/', async (req: Request, res: Response) => {
     
     return res.status(400).json({ error: 'Missing ticker or tickers parameter' });
   } catch (error: any) {
-    console.error('[Fundamentals API] Error:', error);
+    log.error('Fundamentals API error', { 
+      service: 'FundamentalsRoute',
+      endpoint: 'GET /api/fundamentals',
+      error: error.message,
+      stack: error.stack 
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -63,7 +69,13 @@ router.delete('/cache/:ticker', async (req: Request, res: Response) => {
     const result = await fundamentalsService.clearCache(ticker.toUpperCase());
     return res.json(result);
   } catch (error: any) {
-    console.error('[Fundamentals API] Error clearing cache:', error);
+    log.error('Fundamentals API error clearing cache', { 
+      service: 'FundamentalsRoute',
+      endpoint: 'DELETE /api/fundamentals/cache/:ticker',
+      ticker: req.params.ticker,
+      error: error.message,
+      stack: error.stack 
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });

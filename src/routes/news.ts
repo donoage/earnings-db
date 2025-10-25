@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { newsService } from '../services/newsService';
+import log from '../utils/logger';
 
 const router = Router();
 
@@ -46,7 +47,7 @@ router.get('/', async (req: Request, res: Response) => {
       results: news,
     });
   } catch (error: any) {
-    console.error('[News API] Error:', error);
+    log.error('News API error', { service: 'NewsRoute', endpoint: 'GET /api/news', error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -79,7 +80,7 @@ router.get('/:ticker', async (req: Request, res: Response) => {
       results: news,
     });
   } catch (error: any) {
-    console.error('[News API] Error:', error);
+    log.error('News API error', { service: 'NewsRoute', endpoint: 'GET /api/news/:ticker', ticker: req.params.ticker, error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -94,7 +95,7 @@ router.delete('/cache/:ticker?', async (req: Request, res: Response) => {
     await newsService.clearCache(ticker?.toUpperCase());
     res.json({ message: 'Cache cleared successfully' });
   } catch (error: any) {
-    console.error('[News API] Error clearing cache:', error);
+    log.error('News API error clearing cache', { service: 'NewsRoute', endpoint: 'DELETE /api/news/cache/:ticker', ticker: req.params.ticker, error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
