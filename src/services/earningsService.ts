@@ -13,6 +13,7 @@ import { prisma } from '../utils/prisma';
 import { getCached, setCached } from '../utils/redis';
 import { CACHE_TTL } from '../utils/constants';
 import { marketCapService } from './marketCapService';
+import { createScopedLogger, log } from '../utils/logger';
 
 const POLYGON_API_KEY = process.env.POLYGON_API_KEY || '';
 const POLYGON_BASE_URL = 'https://api.polygon.io';
@@ -49,59 +50,69 @@ class EarningsService {
    * Get earnings events for a date range
    */
   async getEarnings(query: EarningsQuery): Promise<EarningsEvent[]> {
-    const earningsId = Math.random().toString(36).substring(7);
-    console.log(`[EarningsService.getEarnings:${earningsId}] 🚀 Called with:`, query);
+    const logger = createScopedLogger('EarningsService.getEarnings');
+    logger.info('Called', query);
     
     const now = new Date();
     now.setHours(0, 0, 0, 0); // Start of today
     
     // Determine if this query is for past earnings (all dates before today)
     const isPastEarnings = query.dateTo && new Date(query.dateTo) < now;
-    console.log(`[EarningsService.getEarnings:${earningsId}] 📅 isPastEarnings:`, isPastEarnings);
+    logger.debug('Determined earnings type', { isPastEarnings });
     
     // Create cache key based on query parameters
     const cacheKey = this.createCacheKey(query);
-    console.log(`[EarningsService.getEarnings:${earningsId}] 🔑 Cache key:`, cacheKey);
+    logger.debug('Created cache key', { cacheKey });
     
     // 1. Check Redis cache (only for past earnings)
     if (isPastEarnings) {
-      console.log(`[EarningsService.getEarnings:${earningsId}] 🔍 Checking Redis cache...`);
+      logger.debug('Checking Redis cache');
       const cached = await getCached<EarningsEvent[]>(cacheKey);
       if (cached) {
-        console.log(`[EarningsService.getEarnings:${earningsId}] ✅ Redis cache HIT: ${cached.length} earnings`);
+        logger.info('Redis cache hit', { count: cached.length, cacheKey });
         return cached;
       }
-      console.log(`[EarningsService.getEarnings:${earningsId}] ❌ Redis cache MISS`);
+      logger.debug('Redis cache miss', { cacheKey });
     }
 
     // 2. For past earnings, check PostgreSQL first (data is complete)
     // For upcoming earnings, always fetch from Polygon (data changes as companies announce dates)
     if (isPastEarnings) {
-      console.log(`[EarningsService.getEarnings:${earningsId}] 🔍 Checking PostgreSQL database...`);
+      logger.debug('Checking PostgreSQL database');
       const dbEarnings = await this.fetchFromDatabase(query);
       
       if (dbEarnings.length > 0) {
-        console.log(`[EarningsService.getEarnings:${earningsId}] ✅ DB HIT: ${dbEarnings.length} earnings, filtering by market cap...`);
+        logger.info('Database hit', { count: dbEarnings.length });
         // Filter by market cap availability
         const filtered = await this.filterByMarketCap(dbEarnings);
         // Cache in background (non-blocking)
         setCached(cacheKey, filtered, CACHE_TTL.EARNINGS_HISTORICAL).catch(err => {
-          console.error(`[EarningsService.getEarnings:${earningsId}] Error caching to Redis:`, err.message);
+          logger.error('Error caching to Redis', { error: err.message, cacheKey });
         });
-        console.log(`[EarningsService.getEarnings:${earningsId}] ✅ DB hit (past earnings, caching in background) for ${cacheKey} (${filtered.length} events after market cap filter)`);
+        logger.info('Returning cached past earnings', { 
+          cacheKey, 
+          count: filtered.length,
+          original_count: dbEarnings.length 
+        });
         return filtered;
       }
-      console.log(`[EarningsService.getEarnings:${earningsId}] ❌ DB MISS: no data found`);
+      logger.debug('Database miss');
     }
 
     // 3. Fetch from Polygon API (upcoming earnings or data not in database)
-    console.log(`[EarningsService.getEarnings:${earningsId}] 🌐 Fetching from Polygon API: ${cacheKey} (${isPastEarnings ? 'past data not in DB' : 'upcoming earnings - always fetch fresh'})`);
+    logger.info('Fetching from Polygon API', { 
+      cacheKey, 
+      reason: isPastEarnings ? 'past data not in DB' : 'upcoming earnings' 
+    });
     const earnings = await this.fetchFromPolygon(query);
     
-    console.log(`[EarningsService.getEarnings:${earningsId}] 📊 Polygon returned ${earnings.length} earnings, filtering by market cap...`);
+    logger.debug('Polygon returned results', { count: earnings.length });
     // Filter by market cap availability
     const filtered = await this.filterByMarketCap(earnings);
-    console.log(`[EarningsService.getEarnings:${earningsId}] ✅ Returning ${filtered.length} filtered earnings`);
+    logger.info('Returning filtered earnings', { 
+      count: filtered.length,
+      original_count: earnings.length 
+    });
     return filtered;
   }
 
@@ -140,8 +151,8 @@ class EarningsService {
    * Fetch earnings from Polygon API (Benzinga earnings endpoint)
    */
   private async fetchFromPolygon(query: EarningsQuery): Promise<EarningsEvent[]> {
-    const polygonId = Math.random().toString(36).substring(7);
-    console.log(`[Polygon:${polygonId}] 🚀 Fetching from Polygon API...`);
+    const logger = createScopedLogger('Polygon');
+    logger.info('Fetching from Polygon API');
     
     try {
       const params: any = {
@@ -156,22 +167,24 @@ class EarningsService {
       if (query.importance !== undefined) params['importance.gte'] = query.importance;
 
       const url = `${POLYGON_BASE_URL}/benzinga/v1/earnings`;
-      console.log(`[Polygon:${polygonId}] 🌐 URL:`, url);
-      console.log(`[Polygon:${polygonId}] 📋 Params:`, { ...params, apiKey: '***' });
-      console.log(`[Polygon:${polygonId}] ⏱️ Timeout: 15000ms`);
+      logger.debug('API request', { 
+        url, 
+        params: { ...params, apiKey: '***' },
+        timeout: 15000 
+      });
 
       const startTime = Date.now();
       const response = await axios.get(url, { params, timeout: 15000 });
       const duration = Date.now() - startTime;
 
-      console.log(`[Polygon:${polygonId}] ✅ Response received in ${duration}ms`);
-      console.log(`[Polygon:${polygonId}] 📊 Status:`, response.status, response.statusText);
-      console.log(`[Polygon:${polygonId}] 📦 Response data status:`, response.data.status);
-      console.log(`[Polygon:${polygonId}] 📦 Has results:`, !!response.data.results);
-      console.log(`[Polygon:${polygonId}] 📦 Results count:`, response.data.results?.length || 0);
+      log.api('Polygon', '/benzinga/v1/earnings', duration, true, {
+        status: response.status,
+        data_status: response.data.status,
+        results_count: response.data.results?.length || 0,
+      });
 
       if (response.data.status !== 'OK' || !response.data.results) {
-        console.log(`[Polygon:${polygonId}] ⚠️ No valid results, returning empty array`);
+        logger.warn('No valid results from Polygon', { data_status: response.data.status });
         return [];
       }
 
@@ -195,7 +208,7 @@ class EarningsService {
         period_year: result.fiscal_year,
       }));
 
-      console.log(`[Polygon:${polygonId}] ✅ Mapped ${earnings.length} earnings events`);
+      logger.info('Mapped earnings events', { count: earnings.length });
 
       // Store in database (non-blocking)
       this.storeInDatabase(earnings);
@@ -209,28 +222,32 @@ class EarningsService {
         const cacheKey = this.createCacheKey(query);
         // Cache in background
         setCached(cacheKey, earnings, CACHE_TTL.EARNINGS_HISTORICAL).catch(err => {
-          console.error(`[Polygon:${polygonId}] Error caching to Redis:`, err.message);
+          logger.error('Error caching to Redis', { error: err.message, cacheKey });
         });
-        console.log(`[Polygon:${polygonId}] ✅ Fetched ${earnings.length} past earnings from Polygon (caching in background)`);
+        logger.info('Fetched past earnings', { count: earnings.length, cached: true });
       } else {
-        console.log(`[Polygon:${polygonId}] ✅ Fetched ${earnings.length} upcoming earnings from Polygon (not cached)`);
+        logger.info('Fetched upcoming earnings', { count: earnings.length, cached: false });
       }
 
       return earnings;
     } catch (error: any) {
-      console.error(`[Polygon:${polygonId}] ❌ ERROR fetching from Polygon`);
-      console.error(`[Polygon:${polygonId}] Error type:`, error.constructor?.name);
-      console.error(`[Polygon:${polygonId}] Error message:`, error.message);
-      console.error(`[Polygon:${polygonId}] Error code:`, error.code);
+      log.api('Polygon', '/benzinga/v1/earnings', 0, false, {
+        error_type: error.constructor?.name,
+        error_message: error.message,
+        error_code: error.code,
+        response_status: error.response?.status,
+        has_response: !!error.response,
+        has_request: !!error.request,
+      });
       
-      if (error.response) {
-        console.error(`[Polygon:${polygonId}] Response status:`, error.response.status);
-        console.error(`[Polygon:${polygonId}] Response data:`, error.response.data);
-      } else if (error.request) {
-        console.error(`[Polygon:${polygonId}] No response received from Polygon`);
-      }
+      logger.error('Polygon API error', {
+        error: error.message,
+        code: error.code,
+        response_status: error.response?.status,
+        response_data: error.response?.data,
+        stack: error.stack,
+      });
       
-      console.error(`[Polygon:${polygonId}] Full error stack:`, error.stack);
       return [];
     }
   }
@@ -243,6 +260,7 @@ class EarningsService {
     
     // Store in background - don't block the response
     (async () => {
+      const logger = createScopedLogger('EarningsService.storeInDatabase');
       try {
         const BATCH_SIZE = 100; // Increased batch size
         const batches = [];
@@ -251,7 +269,10 @@ class EarningsService {
           batches.push(earnings.slice(i, i + BATCH_SIZE));
         }
         
-        console.log(`[Earnings Service] Storing ${earnings.length} earnings in ${batches.length} batches (background)`);
+        log.batch('Storing earnings in database', earnings.length, { 
+          batches: batches.length,
+          batch_size: BATCH_SIZE 
+        });
         
         for (const batch of batches) {
           await prisma.$transaction(
@@ -301,9 +322,9 @@ class EarningsService {
           );
         }
         
-        console.log(`[Earnings Service] Successfully stored ${earnings.length} earnings`);
+        logger.info('Successfully stored earnings', { count: earnings.length });
       } catch (error: any) {
-        console.error(`[Earnings Service] Error storing in database:`, error.message);
+        logger.error('Error storing in database', { error: error.message });
       }
     })();
   }
@@ -341,11 +362,17 @@ class EarningsService {
     });
     
     if (filteredOut.length > 0) {
-      console.log(`[Earnings Service] Filtered out ${filteredOut.length} tickers without cached market cap: ${filteredOut.join(', ')}`);
+      log.debug('Filtered out tickers without market cap', { 
+        count: filteredOut.length,
+        tickers: filteredOut 
+      });
       // Fetch missing market caps in background (don't block response)
       this.fetchMissingMarketCaps(filteredOut);
     }
-    console.log(`[Earnings Service] Market cap filter: ${earnings.length} → ${filtered.length} earnings (sorted by market cap)`);
+    log.info('Market cap filter applied', { 
+      original_count: earnings.length,
+      filtered_count: filtered.length 
+    });
     return filtered;
   }
 
@@ -383,12 +410,13 @@ class EarningsService {
   private fetchMissingMarketCaps(tickers: string[]): void {
     // Fetch in background - don't await
     (async () => {
+      const logger = createScopedLogger('EarningsService.fetchMissingMarketCaps');
       try {
-        console.log(`[Earnings Service] Fetching ${tickers.length} missing market caps in background`);
+        logger.info('Fetching missing market caps in background', { count: tickers.length });
         await marketCapService.getMarketCaps(tickers);
-        console.log(`[Earnings Service] Background market cap fetch complete`);
+        logger.info('Background market cap fetch complete', { count: tickers.length });
       } catch (error: any) {
-        console.error(`[Earnings Service] Error fetching background market caps:`, error.message);
+        logger.error('Error fetching background market caps', { error: error.message });
       }
     })();
   }
@@ -398,33 +426,41 @@ class EarningsService {
    * Fast endpoint for initial render
    */
   async getPrimaryEarnings(query: EarningsQuery): Promise<EarningsEvent[]> {
-    const serviceId = Math.random().toString(36).substring(7);
-    console.log(`[EarningsService:${serviceId}] 🚀 getPrimaryEarnings called with:`, query);
+    const logger = createScopedLogger('EarningsService.getPrimaryEarnings');
+    logger.info('Called', query);
     
     try {
       const startTime = Date.now();
       
       // Get all earnings (will be cached)
-      console.log(`[EarningsService:${serviceId}] 🔄 Calling getEarnings...`);
+      logger.debug('Calling getEarnings');
       const allEarnings = await this.getEarnings(query);
       const fetchDuration = Date.now() - startTime;
       
-      console.log(`[EarningsService:${serviceId}] ✅ getEarnings returned ${allEarnings.length} earnings in ${fetchDuration}ms`);
+      logger.info('getEarnings returned', { 
+        count: allEarnings.length,
+        duration_ms: fetchDuration 
+      });
       
       // Split into primary (top 5 per day per session)
-      console.log(`[EarningsService:${serviceId}] 🔄 Extracting primary earnings...`);
+      logger.debug('Extracting primary earnings');
       const primary = this.extractPrimaryEarnings(allEarnings);
       const totalDuration = Date.now() - startTime;
       
-      console.log(`[EarningsService:${serviceId}] ✅ Extracted ${primary.length} primary earnings (total ${totalDuration}ms)`);
+      logger.info('Extracted primary earnings', { 
+        count: primary.length,
+        total_duration_ms: totalDuration 
+      });
       
       // Pre-fetch 52-week data for primary tickers in background (non-blocking)
       this.prefetch52WeekData(primary);
       
       return primary;
     } catch (error: any) {
-      console.error(`[EarningsService:${serviceId}] ❌ ERROR in getPrimaryEarnings`);
-      console.error(`[EarningsService:${serviceId}] Error:`, error);
+      logger.error('Error in getPrimaryEarnings', { 
+        error: error.message,
+        stack: error.stack 
+      });
       throw error;
     }
   }
@@ -435,9 +471,10 @@ class EarningsService {
    */
   private prefetch52WeekData(earnings: EarningsEvent[]): void {
     (async () => {
+      const logger = createScopedLogger('EarningsService.prefetch52WeekData');
       try {
         const tickers = [...new Set(earnings.map(e => e.ticker))];
-        console.log(`[Earnings Service] Pre-fetching 52-week data for ${tickers.length} tickers in background`);
+        logger.info('Pre-fetching 52-week data in background', { count: tickers.length });
         
         // Check which tickers need 52-week data (don't have it or it's stale)
         const TWELVE_HOURS = 12 * 60 * 60 * 1000;
@@ -471,18 +508,21 @@ class EarningsService {
         });
         
         if (tickersNeedingData.length === 0) {
-          console.log(`[Earnings Service] All tickers have fresh 52-week data`);
+          logger.debug('All tickers have fresh 52-week data');
           return;
         }
         
-        console.log(`[Earnings Service] Fetching 52-week data for ${tickersNeedingData.length} tickers: ${tickersNeedingData.join(', ')}`);
+        logger.info('Fetching 52-week data', { 
+          count: tickersNeedingData.length,
+          tickers: tickersNeedingData 
+        });
         
         // Fetch market cap data (which includes 52-week data)
         await marketCapService.getMarketCaps(tickersNeedingData);
         
-        console.log(`[Earnings Service] ✅ Completed pre-fetching 52-week data`);
+        logger.info('Completed pre-fetching 52-week data', { count: tickersNeedingData.length });
       } catch (error: any) {
-        console.error(`[Earnings Service] Error pre-fetching 52-week data:`, error.message);
+        logger.error('Error pre-fetching 52-week data', { error: error.message });
       }
     })();
   }
@@ -552,7 +592,10 @@ class EarningsService {
       primary.push(...afterClose.slice(0, 5));
     });
 
-    console.log(`[Earnings Service] Extracted ${primary.length} primary earnings from ${earnings.length} total`);
+    log.debug('Extracted primary earnings', { 
+      primary_count: primary.length,
+      total_count: earnings.length 
+    });
     return primary;
   }
 

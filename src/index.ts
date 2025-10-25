@@ -13,6 +13,7 @@ import marketCapRouter from './routes/marketCap';
 import earningsRouter from './routes/earnings';
 import logoAndMarketCapRouter from './routes/logoAndMarketCap';
 import newsRouter from './routes/news';
+import log from './utils/logger';
 
 // Load environment variables
 dotenv.config();
@@ -49,7 +50,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   const start = Date.now();
   res.on('finish', () => {
     const duration = Date.now() - start;
-    console.log(`${req.method} ${req.path} ${res.statusCode} - ${duration}ms`);
+    log.http(req.method, req.path, res.statusCode, duration);
   });
   next();
 });
@@ -108,7 +109,12 @@ app.use((req: Request, res: Response) => {
 
 // Error handler
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
-  console.error('Error:', err);
+  log.error('Unhandled error', {
+    error: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method,
+  });
   res.status(500).json({
     error: 'Internal Server Error',
     message: process.env.NODE_ENV === 'development' ? err.message : undefined,
@@ -117,37 +123,34 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log('');
-  console.log('🚀 Earnings DB API Server');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log(`📡 Server running on port ${PORT}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 URL: http://localhost:${PORT}`);
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('');
-  console.log('Available endpoints:');
-  console.log(`  GET  /health`);
-  console.log(`  GET  /health/detailed`);
-  console.log(`  GET  /api/logos/:ticker`);
-  console.log(`  GET  /api/logos?tickers=AAPL,MSFT`);
-  console.log(`  POST /api/logos/:ticker/refresh`);
-  console.log(`  GET  /api/fundamentals?ticker=AAPL`);
-  console.log(`  GET  /api/fundamentals?tickers=AAPL,MSFT`);
-  console.log(`  GET  /api/market-cap?tickers=AAPL,MSFT`);
-  console.log(`  GET  /api/earnings?dateFrom=2025-01-01&dateTo=2025-01-31`);
-  console.log(`  GET  /api/news?limit=50`);
-  console.log(`  GET  /api/news/:ticker`);
-  console.log('');
+  log.info('Server started', {
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development',
+    url: `http://localhost:${PORT}`,
+    endpoints: [
+      'GET /health',
+      'GET /health/detailed',
+      'GET /api/logos/:ticker',
+      'GET /api/logos?tickers=AAPL,MSFT',
+      'POST /api/logos/:ticker/refresh',
+      'GET /api/fundamentals?ticker=AAPL',
+      'GET /api/fundamentals?tickers=AAPL,MSFT',
+      'GET /api/market-cap?tickers=AAPL,MSFT',
+      'GET /api/earnings?dateFrom=2025-01-01&dateTo=2025-01-31',
+      'GET /api/news?limit=50',
+      'GET /api/news/:ticker',
+    ],
+  });
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully...');
+  log.info('SIGTERM received, shutting down gracefully');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully...');
+  log.info('SIGINT received, shutting down gracefully');
   process.exit(0);
 });
 
