@@ -21,7 +21,13 @@ router.get('/primary', async (req: Request, res: Response) => {
   
   try {
     const { dateFrom, dateTo, tickers, importance } = req.query;
-    logger.debug('Query params', { service: 'EarningsRoute', dateFrom, dateTo, tickers, importance });
+    logger.debug('Query params', { 
+      service: 'EarningsRoute',
+      dateFrom: dateFrom as string,
+      dateTo: dateTo as string,
+      tickers: tickers as string,
+      importance: importance as string
+    });
     
     const query: any = {};
     if (dateFrom && typeof dateFrom === 'string') query.dateFrom = dateFrom;
