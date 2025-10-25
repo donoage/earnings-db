@@ -5,6 +5,7 @@
 
 import express, { Request, Response } from 'express';
 import { marketCapService } from '../services/marketCapService';
+import log from '../utils/logger';
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ const router = express.Router();
 router.get('/test/:ticker', async (req: Request, res: Response) => {
   try {
     const { ticker } = req.params;
-    console.log(`[Market Cap API Test] Testing ${ticker}`);
+    log.info('Market Cap API test request', { service: 'MarketCapRoute', endpoint: 'GET /api/market-cap/test/:ticker', ticker });
     
     const result = await marketCapService.getMarketCap(ticker);
     
@@ -25,7 +26,7 @@ router.get('/test/:ticker', async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    console.error('[Market Cap API Test] Error:', error);
+    log.error('Market Cap API test error', { service: 'MarketCapRoute', endpoint: 'GET /api/market-cap/test/:ticker', ticker: req.params.ticker, error: error.message, stack: error.stack });
     res.status(500).json({ 
       ticker: req.params.ticker,
       success: false,
@@ -76,7 +77,7 @@ router.get('/', async (req: Request, res: Response) => {
     
     res.json({ marketCaps });
   } catch (error: any) {
-    console.error('[Market Cap API] Error:', error);
+    log.error('Market Cap API error', { service: 'MarketCapRoute', endpoint: 'GET /api/market-cap', error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Internal server error', message: error.message });
   }
 });
