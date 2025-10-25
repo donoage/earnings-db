@@ -137,22 +137,25 @@ export const log = {
 /**
  * Create a scoped logger with automatic context
  * Useful for tracking operations across multiple log calls
+ * Automatically extracts service name from scope (e.g., "EarningsService.getEarnings" -> "EarningsService")
  */
 export function createScopedLogger(scope: string, contextId?: string) {
   const context = contextId || Math.random().toString(36).substring(7);
+  // Extract service name from scope (e.g., "EarningsService.getEarnings" -> "EarningsService")
+  const service = scope.split('.')[0];
   
   return {
     debug(message: string, attributes?: LogAttributes): void {
-      log.debug(message, { scope, context, ...attributes });
+      log.debug(message, { service, scope, context, ...attributes });
     },
     info(message: string, attributes?: LogAttributes): void {
-      log.info(message, { scope, context, ...attributes });
+      log.info(message, { service, scope, context, ...attributes });
     },
     warn(message: string, attributes?: LogAttributes): void {
-      log.warn(message, { scope, context, ...attributes });
+      log.warn(message, { service, scope, context, ...attributes });
     },
     error(message: string, attributes?: LogAttributes): void {
-      log.error(message, { scope, context, ...attributes });
+      log.error(message, { service, scope, context, ...attributes });
     },
   };
 }

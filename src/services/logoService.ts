@@ -6,6 +6,7 @@
 import axios from 'axios';
 import { prisma } from '../utils/prisma';
 import { getCached, setCached, CACHE_TTL } from '../utils/redis';
+import { createScopedLogger, log } from '../utils/logger';
 
 const POLYGON_API_KEY = process.env.POLYGON_API_KEY || '';
 const POLYGON_BASE_URL = 'https://api.polygon.io';
@@ -26,15 +27,17 @@ export class LogoService {
   async getLogo(ticker: string): Promise<LogoData | null> {
     const tickerUpper = ticker.toUpperCase();
     const cacheKey = `logo:${tickerUpper}`;
+    const logger = createScopedLogger('LogoService.getLogo');
 
-    console.log(`[Logo Service] Getting logo for ${tickerUpper}`);
+    logger.info('Getting logo', { service: 'LogoService', ticker: tickerUpper });
 
     // 1. Check Redis cache
     const cached = await getCached<LogoData>(cacheKey);
     if (cached) {
-      console.log(`[Logo Service] ✅ Redis cache hit for ${tickerUpper}`);
+      log.cache('hit', cacheKey, { service: 'LogoService', ticker: tickerUpper });
       return cached;
     }
+    log.cache('miss', cacheKey, { service: 'LogoService', ticker: tickerUpper });
 
     // 2. Check PostgreSQL
     const dbLogo = await prisma.logo.findUnique({
@@ -42,7 +45,13 @@ export class LogoService {
     });
 
     if (dbLogo) {
-      console.log(`[Logo Service] ✅ DB cache hit for ${tickerUpper}`);
+      logger.info('Database hit', { 
+        service: 'LogoService',
+        ticker: tickerUpper,
+        has_icon: !!dbLogo.iconUrl,
+        has_logo: !!dbLogo.logoUrl 
+      });
+      
       const logoData: LogoData = {
         ticker: dbLogo.ticker,
         iconUrl: dbLogo.iconUrl,
@@ -51,20 +60,15 @@ export class LogoService {
         exchange: dbLogo.exchange,
       };
       
-      console.log(`[Logo Service] DB logo data:`, {
-        ticker: logoData.ticker,
-        iconUrl: logoData.iconUrl,
-        logoUrl: logoData.logoUrl,
-      });
-      
       // Cache in Redis
       await setCached(cacheKey, logoData, CACHE_TTL.LOGO);
       return logoData;
     }
 
     // 3. Fetch from Polygon API
-    console.log(`[Logo Service] 🌐 Fetching from Polygon for ${tickerUpper}`);
+    logger.info('Fetching from Polygon API', { service: 'LogoService', ticker: tickerUpper });
     try {
+      const startTime = Date.now();
       const response = await axios.get(
         `${POLYGON_BASE_URL}/v3/reference/tickers/${tickerUpper}`,
         {
@@ -72,6 +76,7 @@ export class LogoService {
           timeout: 5000,
         }
       );
+      const duration = Date.now() - startTime;
 
       if (response.data.status === 'OK' && response.data.results) {
         const result = response.data.results;
@@ -82,10 +87,11 @@ export class LogoService {
         const iconUrl = branding.icon_url || branding.logo_url || null;
         const logoUrl = branding.logo_url || null;
 
-        console.log(`[Logo Service] Polygon returned URLs:`, {
+        log.api('Polygon', `/v3/reference/tickers/${tickerUpper}`, duration, true, {
+          service: 'LogoService',
           ticker: tickerUpper,
-          iconUrl,
-          logoUrl,
+          has_icon: !!iconUrl,
+          has_logo: !!logoUrl,
         });
 
         const logoData: LogoData = {
@@ -115,7 +121,7 @@ export class LogoService {
           },
         });
 
-        console.log(`[Logo Service] ✅ Stored logo for ${tickerUpper} in DB`);
+        logger.info('Stored logo in database', { service: 'LogoService', ticker: tickerUpper });
 
         // Cache in Redis
         await setCached(cacheKey, logoData, CACHE_TTL.LOGO);
@@ -123,10 +129,19 @@ export class LogoService {
         return logoData;
       }
     } catch (error: any) {
-      console.error(`[Logo Service] ❌ Error fetching logo for ${tickerUpper}:`, error.message);
+      log.api('Polygon', `/v3/reference/tickers/${tickerUpper}`, 0, false, {
+        service: 'LogoService',
+        ticker: tickerUpper,
+        error: error.message,
+      });
+      logger.error('Error fetching logo', { 
+        service: 'LogoService',
+        ticker: tickerUpper,
+        error: error.message 
+      });
     }
 
-    console.log(`[Logo Service] ❌ No logo found for ${tickerUpper}`);
+    logger.warn('No logo found', { service: 'LogoService', ticker: tickerUpper });
     return null;
   }
 
